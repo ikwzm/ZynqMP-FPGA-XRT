@@ -1,0 +1,31 @@
+diff --git a/src/CMake/config/edge/postinst.in b/src/CMake/config/edge/postinst.in
+index 22136c09..b85a1032 100644
+--- a/src/CMake/config/edge/postinst.in
++++ b/src/CMake/config/edge/postinst.in
+@@ -48,6 +48,7 @@ echo "Invoking DKMS common.postinst for xrt"
+ /usr/lib/dkms/common.postinst xrt @XRT_VERSION_STRING@ "" "" $2
+ if [ $? -eq 0 ]; then
+     echo "Finished DKMS common.postinst"
++    install -m 644 /usr/src/xrt-@XRT_VERSION_STRING@/driver/edge/drm/zocl/10-zocl.rules /etc/udev/rules.d
+     echo "Loading new XRT Linux kernel modules"
+     udevadm control --reload-rules
+     modprobe zocl
+diff --git a/src/CMake/dkms-edge.cmake b/src/CMake/dkms-edge.cmake
+index d1d39750..61664945 100644
+--- a/src/CMake/dkms-edge.cmake
++++ b/src/CMake/dkms-edge.cmake
+@@ -38,6 +38,7 @@ SET (XRT_DKMS_CORE_COMMON_DRV    ${XRT_DKMS_CORE_DIR}/common/drv)
+ SET (XRT_DKMS_DRIVER_SRCS
+   edge/drm/zocl/LICENSE
+   edge/drm/zocl/Makefile
++  edge/drm/zocl/10-zocl.rules
+   edge/drm/zocl/sched_exec.c
+   edge/drm/zocl/sched_exec.h
+   edge/drm/zocl/zocl_bo.c
+diff --git a/src/runtime_src/core/edge/drm/zocl/10-zocl.rules b/src/runtime_src/core/edge/drm/zocl/10-zocl.rules
+new file mode 100644
+index 00000000..11ed38e1
+--- /dev/null
++++ b/src/runtime_src/core/edge/drm/zocl/10-zocl.rules
+@@ -0,0 +1 @@
++KERNEL=="renderD*",MODE="0666"

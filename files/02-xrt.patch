@@ -1,0 +1,489 @@
+diff --git a/build/build.sh b/build/build.sh
+index d9b97dcd..f004e020 100755
+--- a/build/build.sh
++++ b/build/build.sh
+@@ -154,7 +154,7 @@ cd $BUILDDIR
+ 
+ if [[ $clean == 1 ]]; then
+     echo $PWD
+-    echo "/bin/rm -rf $debug_dir $release_dir"
++    echo "/bin/rm -rf $debug_dir $release_dir $edge_dir"
+     /bin/rm -rf $debug_dir $release_dir $edge_dir
+     exit 0
+ fi
+@@ -241,6 +241,28 @@ if [[ $CPU != "aarch64" ]] && [[ $edge == 1 ]]; then
+   cd $BUILDDIR
+ fi
+     
++if [[ $CPU == "aarch64" ]] && [[ $edge == 1 ]]; then
++  mkdir -p $edge_dir
++  cd $edge_dir
++  if [[ $nocmake == 0 ]]; then
++    echo "$CMAKE -DRDI_CCACHE=$ccache -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=ON ../../src"
++    time env XRT_EDGE_BUILD=yes $CMAKE -DRDI_CCACHE=$ccache -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=ON ../../src
++  fi
++
++  if [[ $docs == 1 ]]; then
++    echo "make xrt_docs"
++    make xrt_docs
++  else
++    echo "make -j $jcore $verbose DESTDIR=$PWD"
++    time make -j $jcore $verbose DESTDIR=$PWD
++    time ctest --output-on-failure
++    time make package
++  fi
++
++
++  cd $BUILDDIR
++fi
++    
+     
+ if [[ $clangtidy == 1 ]]; then
+     echo "make clang-tidy"
+diff --git a/src/CMake/config/dkms-zocl/dkms.conf.in b/src/CMake/config/dkms-zocl/dkms.conf.in
+new file mode 100644
+index 00000000..d0718cc9
+--- /dev/null
++++ b/src/CMake/config/dkms-zocl/dkms.conf.in
+@@ -0,0 +1,8 @@
++PACKAGE_NAME="xrt-zocl"
++PACKAGE_VERSION="@XRT_VERSION_STRING@"
++MAKE="cd driver/edge/drm/zocl; make KERNELDIR=${kernel_source_dir}; cd ../../../.."
++CLEAN="cd driver/edge/drm/zocl; make clean KERNELDIR=${kernel_source_dir}; cd ../../../.."
++BUILT_MODULE_NAME="zocl"
++BUILT_MODULE_LOCATION="driver/edge/drm/zocl"
++DEST_MODULE_LOCATION="/kernel/extras"
++AUTOINSTALL="yes"
+diff --git a/src/CMake/config/edge/postinst.in b/src/CMake/config/edge/postinst.in
+new file mode 100644
+index 00000000..22136c09
+--- /dev/null
++++ b/src/CMake/config/edge/postinst.in
+@@ -0,0 +1,127 @@
++#!/bin/sh
++
++#
++# UBUNTU NOTE
++# -----------
++# 1. When downgrading (say from 2.3.0 to 2.2.0) then prerm of 2.3.0 is run
++#    followed by postinst of 2.2.0. The prerm is invoked with "upgrade 2.2.0"
++#    argument and postinst is invoked with "configure 2.3.0" argument.
++# 2. When upgrading (say from 2.2.0 to 2.3.0) then prerm of 2.2.0 is run
++#    followed by postinst of 2.3.0. The prerm is invoked with "upgrade 2.3.0"
++#    argument and postinst is invoked with "configure 2.2.0" argument.
++# 3. When re-installing (say from 2.2.0 to 2.2.0) then prerm of 2.2.0 is run
++#    followed by postinst of 2.2.0. The prerm is invoked with "upgrade 2.2.0"
++#    argument and postinst is invoked with "configure 2.2.0" argument.
++#
++# RHEL/CentOS NOTE
++# ----------------
++# 1. When downgrading (say from 2.3.0 to 2.2.0) then oddly postinst of 2.2.0
++#    is run first followed by prerm of 2.3.0. The postinst is invoked with
++#    "2" and prerm is invoked with "1".
++# 2. When upgrading (say from 2.2.0 to 2.3.0) then prerm of 2.2.0 is NOT run
++#    but postinst of 2.3.0 is run. The postinst is invoked with "2" argument.
++# 3. When re-installing (say from 2.2.0 to 2.2.0) then prerm is NOT run but
++#    and postinst of 2.2.0 is run. The postinst is invoked with "2" argument.
++
++rmmodules()
++{
++    find /lib/modules -type f -name zocl.ko -delete
++    find /lib/modules -type f -name zocl.ko.kz -delete
++    find /lib/modules -type f -name zocl.ko.xz -delete
++    depmod -A
++}
++
++installdir=/opt/xilinx/xrt
++systemddir=/etc/systemd/system
++
++echo "Unloading old XRT Linux kernel modules"
++rmmod zocl
++XRT_VERSION_STRING_OLD=`dkms status -m xrt | awk -F, '{print $2}'`
++for OLD in $XRT_VERSION_STRING_OLD; do
++    echo "Unregistering old XRT Linux kernel module sources $OLD from dkms"
++    dkms remove -m xrt -v $OLD --all
++    break
++done
++rmmodules
++
++echo "Invoking DKMS common.postinst for xrt"
++/usr/lib/dkms/common.postinst xrt @XRT_VERSION_STRING@ "" "" $2
++if [ $? -eq 0 ]; then
++    echo "Finished DKMS common.postinst"
++    echo "Loading new XRT Linux kernel modules"
++    udevadm control --reload-rules
++    modprobe zocl
++    udevadm trigger
++fi
++
++if [ -z "`dkms status -m xrt -v @XRT_VERSION_STRING@ |grep installed`" ]; then
++    echo "****************************************************************"
++    echo "* DKMS failed to install XRT drivers."
++    echo "* Please check if kernel development headers are installed for OS variant used."
++    echo "* "
++    echo "* Check build logs in /var/lib/dkms/xrt/@XRT_VERSION_STRING@"
++    echo "****************************************************************"
++fi
++
++#install pyopencl
++#get major version of pyopencl
++VERSION=$(python -m pip list 2>&1 | grep -Po '(?<=pyopencl )(.+)' | grep -Po '[0-9][0-9][0-9][0-9]')
++FLAVOR=`grep '^ID=' /etc/os-release | awk -F= '{print $2}'`
++FLAVOR=`echo $FLAVOR | tr -d '"'`
++
++#ppc+rhel
++# skip pyopencl installation
++if [ `uname -m` = "ppc64le" ] && [ $FLAVOR = "rhel" ]; then
++    exit 0
++fi
++#ppc+ubuntu
++#need to manually install python3 and pyhont3-pip
++if [ `uname -m` = "ppc64le" ] && [ $FLAVOR = "ubuntu" ]; then
++    echo "Installing pyopencl..."
++    pip3 install pyopencl
++    python3 -c "import pyopencl"
++    if [ $? != 0 ]; then
++        echo "***********************************************************************"
++        echo "* FAILED TO INSTALL PYOPENCL"
++        echo "* Please make sure python3 and python3-pip are installed"
++        echo "* If installation still failed"
++        echo "* Please try to install pyopencl using the "
++        echo "* offical documentation: https://documen.tician.de/pyopencl/misc.html"
++        echo "***********************************************************************"
++    fi
++    exit 0
++fi
++
++if [ -z $VERSION ] ; then
++    echo "Installing pyopencl..."
++    #need to force install numpy version 1.8 for centos
++    if [ $FLAVOR = "centos" ] || [ $FLAVOR = "rhel" ] ; then
++        pip install --upgrade setuptools
++        pip install --ignore-installed numpy==1.8
++    fi
++    pip install pyopencl
++# if older version of pyopencl and import fails prompt user to upgarde pyopencl
++elif [ $VERSION -lt 2019 ] && [ $(python -c "import pyopencl") ]; then
++    echo "***********************************************************************"
++    echo "* Pyopencl ($VERSION) is installed on the system but pyopencl >= 2019.1"
++    echo "* is required. Please uninstall the current pyopencl by running"
++    echo "* 'apt remove python-pyopencl' or 'pip uninstall pyopencl'" 
++    echo "* and then reinstall the xrt package"
++    echo "***********************************************************************"
++    exit 0
++else
++    echo "Skipping pyopencl installation..."
++    exit 0
++fi
++if [ $(python -c "import pyopencl") ]; then
++    echo "***********************************************************************"
++    echo "* FAILED TO INSTALL PYOPENCL"
++    echo "*"
++    echo "* Please try to reinstall xrt package after running"
++    echo "* 'sudo pip install --upgrade pip'"
++    echo "* 'sudo pip install numpy'"
++    echo "* Or follow the official pyopencl installation guide: "
++    echo "* https://documen.tician.de/pyopencl/misc.html"
++    echo "***********************************************************************"
++fi
++exit 0
+diff --git a/src/CMake/config/edge/prerm.in b/src/CMake/config/edge/prerm.in
+new file mode 100644
+index 00000000..da55f044
+--- /dev/null
++++ b/src/CMake/config/edge/prerm.in
+@@ -0,0 +1,64 @@
++#!/bin/sh
++
++#
++# UBUNTU NOTE
++# -----------
++# 1. When downgrading (say from 2.3.0 to 2.2.0) then prerm of 2.3.0 is run
++#    but postinst of 2.2.0 is run. The prerm is invoked with "upgrade 2.2.0"
++#    argument and postinst is invoked with "configure 2.3.0" argument.
++# 2. When upgrading (say from 2.2.0 to 2.3.0) then prerm of 2.2.0 is run
++#    but postinst of 2.3.0 is run. The prerm is invoked with "upgrade 2.3.0"
++#    argument and postinst is invoked with "configure 2.2.0" argument.
++# 3. When re-installing (say from 2.2.0 to 2.2.0) then prerm of 2.2.0 is run
++#    and postinst of 2.2.0 is run. The prerm is invoked with "upgrade 2.2.0"
++#    argument and postinst is invoked with "configure 2.2.0" argument.
++#
++# RHEL/CentOS NOTE
++# ----------------
++# 1. When downgrading (say from 2.3.0 to 2.2.0) then oddly postinst of 2.2.0
++#    is run first followed by prerm of 2.3.0 run. The postinst is invoked with
++#    "2" and prerm is invoked with "1".
++# 2. When upgrading (say from 2.2.0 to 2.3.0) then prerm of 2.2.0 is NOT run
++#    but postinst of 2.3.0 is run. The postinst is invoked with "2" argument.
++# 3. When re-installing (say from 2.2.0 to 2.2.0) then prerm is NOT run but
++#    and postinst of 2.2.0 is run. The postinst is invoked with "2" argument.
++
++# In the case of upgrade, downgrade or re-install we would like to preserve the
++# configuration of the components and hence we want to handle the configuration
++# in postinst script.
++
++lsb_release -si | grep -Eq "^RedHat|^CentOS"
++if [ $? -eq 0 ] && [ $1 -ge 1 ]; then
++    echo "Cleanup is skipped for package upgrade/downgrade/re-install on RHEL/CentOS"
++    exit 0
++fi
++
++lsb_release -si | grep -Eq "^Ubuntu|^Debian"
++if [ $? -eq 0 ] && [ "$1" = "upgrade" ]; then
++    echo "Unregistering old XRT Linux kernel module sources @XRT_VERSION_STRING@ from dkms on Ubuntu/Debian"
++    dkms remove -m xrt -v @XRT_VERSION_STRING@ --all
++    echo "Cleanup is skipped for package upgrade/downgrade/re-install on Ubuntu/Debian"
++    exit 0
++fi
++
++# If we are here XRT is being uninstalled. It is NOT one of upgrade, downgrade or
++# re-install.
++
++echo "Unloading old XRT Linux kernel modules"
++rmmod zocl
++
++echo "Unregistering XRT Linux kernel module sources @XRT_VERSION_STRING@ from dkms"
++dkms remove -m xrt -v @XRT_VERSION_STRING@ --all
++find /lib/modules -type f -name zocl.ko -delete
++find /lib/modules -type f -name zocl.ko.kz -delete
++find /lib/modules -type f -name zocl.ko.xz -delete
++depmod -A
++
++echo "Cleaning up XMA..."
++rm -f /tmp/xma_shm_db
++
++echo "Cleaning up python..."
++rm -f /opt/xilinx/xrt/python/*.pyc
++rm -f /opt/xilinx/xrt/test/*.pyc
++
++exit 0
+diff --git a/src/CMake/cpackLin.cmake b/src/CMake/cpackLin.cmake
+index 5b056580..303f0867 100644
+--- a/src/CMake/cpackLin.cmake
++++ b/src/CMake/cpackLin.cmake
+@@ -43,13 +43,14 @@ if (${LINUX_FLAVOR} MATCHES "^(Ubuntu|Debian)")
+   SET(CPACK_DEBIAN_XRT_PACKAGE_NAME "xrt")
+ 
+   SET(CPACK_DEBIAN_XRT_PACKAGE_CONTROL_EXTRA "${CMAKE_CURRENT_BINARY_DIR}/postinst;${CMAKE_CURRENT_BINARY_DIR}/prerm")
+-  SET(CPACK_DEBIAN_AWS_PACKAGE_CONTROL_EXTRA "${CMAKE_CURRENT_BINARY_DIR}/aws/postinst;${CMAKE_CURRENT_BINARY_DIR}/aws/prerm")
++  SET(CPACK_DEBIAN_AWS_PACKAGE_CONTROL_EXTRA  "${CMAKE_CURRENT_BINARY_DIR}/aws/postinst;${CMAKE_CURRENT_BINARY_DIR}/aws/prerm")
+   SET(CPACK_DEBIAN_AZURE_PACKAGE_CONTROL_EXTRA "${CMAKE_CURRENT_BINARY_DIR}/azure/postinst;${CMAKE_CURRENT_BINARY_DIR}/azure/prerm")
+   SET(CPACK_DEBIAN_CONTAINER_PACKAGE_CONTROL_EXTRA "${CMAKE_CURRENT_BINARY_DIR}/container/postinst;${CMAKE_CURRENT_BINARY_DIR}/container/prerm")
+   SET(CPACK_DEBIAN_PACKAGE_SHLIBDEPS "OFF")
+   SET(CPACK_DEBIAN_AWS_PACKAGE_DEPENDS "xrt (>= ${XRT_VERSION_MAJOR}.${XRT_VERSION_MINOR}.${XRT_VERSION_PATCH})")
+   SET(CPACK_DEBIAN_XBTEST_PACKAGE_DEPENDS "xrt (>= ${XRT_VERSION_MAJOR}.${XRT_VERSION_MINOR}.${XRT_VERSION_PATCH}), libjson-glib-dev")
+   SET(CPACK_DEBIAN_XRT_PACKAGE_DEPENDS "ocl-icd-opencl-dev (>= 2.2.0), libboost-dev (>= ${Boost_VER_STR}), libboost-filesystem-dev (>=${Boost_VER_STR}), uuid-dev (>= 2.27.1), dkms (>= 2.2.0), libprotoc-dev (>=2.6.1), libssl-dev (>=1.0.2), protobuf-compiler (>=2.6.1), libncurses5-dev (>=6.0), lsb-release, libxml2-dev (>=2.9.1), libyaml-dev (>= 0.1.6), libc6 (>= ${GLIBC_VERSION}), python (>= 2.7), python-pip, libudev-dev ")
++  SET(CPACK_DEBIAN_EDGE_PACKAGE_DEPENDS "ocl-icd-opencl-dev (>= 2.2.0), libboost-dev (>= ${Boost_VER_STR}), libboost-filesystem-dev (>=${Boost_VER_STR}), uuid-dev (>= 2.27.1), dkms (>= 2.2.0), libprotoc-dev (>=2.6.1), libssl-dev (>=1.0.2), protobuf-compiler (>=2.6.1), libncurses5-dev (>=6.0), lsb-release, libxml2-dev (>=2.9.1), libyaml-dev (>= 0.1.6), libc6 (>= ${GLIBC_VERSION}), python (>= 2.7), python-pip, libudev-dev ")
+ 
+ elseif (${LINUX_FLAVOR} MATCHES "^(RedHat|CentOS|Amazon)")
+   execute_process(
+diff --git a/src/CMake/dkms-edge.cmake b/src/CMake/dkms-edge.cmake
+new file mode 100644
+index 00000000..d1d39750
+--- /dev/null
++++ b/src/CMake/dkms-edge.cmake
+@@ -0,0 +1,127 @@
++# Custom variables imported by this CMake stub which should be defined by parent CMake:
++# XRT_DKMS_DRIVER_SRC_BASE_DIR
++# XRT_VERSION_STRING
++# LINUX_KERNEL_VERSION
++
++set (XRT_DKMS_INSTALL_DIR "/usr/src/xrt-${XRT_VERSION_STRING}")
++set (XRT_DKMS_INSTALL_DRIVER_DIR "${XRT_DKMS_INSTALL_DIR}/driver")
++
++message("-- XRT DRIVER SRC BASE DIR ${XRT_DKMS_DRIVER_SRC_BASE_DIR}")
++
++SET (DKMS_FILE_NAME "dkms.conf")
++SET (DKMS_POSTINST "postinst")
++SET (DKMS_PRERM "prerm")
++
++configure_file (
++  "${CMAKE_SOURCE_DIR}/CMake/config/dkms-zocl/${DKMS_FILE_NAME}.in"
++  ${DKMS_FILE_NAME}
++  @ONLY
++  )
++
++configure_file (
++  "${CMAKE_SOURCE_DIR}/CMake/config/edge/${DKMS_POSTINST}.in"
++  ${DKMS_POSTINST}
++  @ONLY
++  )
++
++configure_file (
++  "${CMAKE_SOURCE_DIR}/CMake/config/edge/${DKMS_PRERM}.in"
++  ${DKMS_PRERM}
++  @ONLY
++  )
++
++SET (XRT_DKMS_DRIVER_SRC_DIR     ${XRT_DKMS_DRIVER_SRC_BASE_DIR} )
++SET (XRT_DKMS_DRIVER_INCLUDE_DIR ${XRT_DKMS_DRIVER_SRC_BASE_DIR} )
++SET (XRT_DKMS_CORE_DIR           ${XRT_DKMS_DRIVER_SRC_BASE_DIR})
++SET (XRT_DKMS_CORE_COMMON_DRV    ${XRT_DKMS_CORE_DIR}/common/drv)
++
++SET (XRT_DKMS_DRIVER_SRCS
++  edge/drm/zocl/LICENSE
++  edge/drm/zocl/Makefile
++  edge/drm/zocl/sched_exec.c
++  edge/drm/zocl/sched_exec.h
++  edge/drm/zocl/zocl_bo.c
++  edge/drm/zocl/zocl_bo.h
++  edge/drm/zocl/zocl_cu.c
++  edge/drm/zocl/zocl_cu.h
++  edge/drm/zocl/zocl_dma.c
++  edge/drm/zocl/zocl_dma.h
++  edge/drm/zocl/zocl_drv.c
++  edge/drm/zocl/zocl_drv.h
++  edge/drm/zocl/zocl_ert.c
++  edge/drm/zocl/zocl_ert.h
++  edge/drm/zocl/zocl_generic_cu.c
++  edge/drm/zocl/zocl_generic_cu.h
++  edge/drm/zocl/zocl_ioctl.c
++  edge/drm/zocl/zocl_ioctl.h
++  edge/drm/zocl/zocl_mailbox.c
++  edge/drm/zocl/zocl_mailbox.h
++  edge/drm/zocl/zocl_ospi_versal.c
++  edge/drm/zocl/zocl_ospi_versal.h
++  edge/drm/zocl/zocl_ov_sysfs.c
++  edge/drm/zocl/zocl_sk.c
++  edge/drm/zocl/zocl_sk.h
++  edge/drm/zocl/zocl_sysfs.c
++  edge/drm/zocl/zocl_util.h
++  edge/drm/zocl/zocl_xclbin.c
++  edge/drm/zocl/zocl_xclbin.h
++  )
++
++# includes relative to core/edge/
++SET (XRT_DKMS_DRIVER_INCLUDES
++  edge/include/sk_types.h
++  edge/include/xclhal2_mpsoc.h
++  edge/include/zynq_ioctl.h
++  edge/include/zynq_perfmon_params.h
++  )
++
++# includes relative to core
++SET (XRT_DKMS_CORE_INCLUDES
++  include/ert.h
++  include/stream.h
++  include/types.h
++  include/xbar_sys_parameters.h
++  include/xcl_api_macros.h
++  include/xcl_app_debug.h
++  include/xcl_axi_checker_codes.h
++  include/xclbin.h
++  include/xclerr.h
++  include/xclfeatures.h
++  include/xclhal2.h
++  include/xclhal2_mem.h
++  include/xcl_macros.h
++  include/xclperf.h
++  include/xcl_perfmon_parameters.h
++  include/xrt.h
++  include/xrt_mem.h
++  include/xstream.h
++  )
++
++SET (XRT_DKMS_COMMON_XRT_DRV
++  common/drv/xrt_drv.h
++  )
++
++SET (XRT_DKMS_ABS_SRCS)
++
++foreach (DKMS_FILE ${XRT_DKMS_DRIVER_SRCS})
++  get_filename_component(DKMS_DIR ${DKMS_FILE} DIRECTORY)
++  install (FILES ${XRT_DKMS_DRIVER_SRC_DIR}/${DKMS_FILE} DESTINATION ${XRT_DKMS_INSTALL_DRIVER_DIR}/${DKMS_DIR})
++endforeach()
++  
++foreach (DKMS_FILE ${XRT_DKMS_DRIVER_INCLUDES})
++  get_filename_component(DKMS_DIR ${DKMS_FILE} DIRECTORY)
++  install (FILES ${XRT_DKMS_DRIVER_INCLUDE_DIR}/${DKMS_FILE} DESTINATION ${XRT_DKMS_INSTALL_DRIVER_DIR}/${DKMS_DIR})
++endforeach()
++  
++foreach (DKMS_FILE ${XRT_DKMS_CORE_INCLUDES})
++  get_filename_component(DKMS_DIR ${DKMS_FILE} DIRECTORY)
++  install (FILES ${XRT_DKMS_CORE_DIR}/${DKMS_FILE} DESTINATION ${XRT_DKMS_INSTALL_DRIVER_DIR}/${DKMS_DIR})
++endforeach()
++
++foreach (DKMS_FILE ${XRT_DKMS_COMMON_XRT_DRV})
++  get_filename_component(DKMS_DIR ${DKMS_FILE} DIRECTORY)
++  install (FILES ${XRT_DKMS_CORE_DIR}/${DKMS_FILE} DESTINATION ${XRT_DKMS_INSTALL_DRIVER_DIR}/include/)
++endforeach()
++
++install (FILES ${CMAKE_CURRENT_BINARY_DIR}/${DKMS_FILE_NAME} DESTINATION ${XRT_DKMS_INSTALL_DIR})
++
+diff --git a/src/CMake/nativeLnx.cmake b/src/CMake/nativeLnx.cmake
+index 2201bd3b..f6d06bf1 100644
+--- a/src/CMake/nativeLnx.cmake
++++ b/src/CMake/nativeLnx.cmake
+@@ -145,10 +145,14 @@ include (CMake/lint.cmake)
+ 
+ set (XRT_DKMS_DRIVER_SRC_BASE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/runtime_src/core")
+ 
+-include (CMake/dkms.cmake)
+-include (CMake/dkms-aws.cmake)
+-include (CMake/dkms-azure.cmake)
+-include (CMake/dkms-container.cmake)
++if (${XRT_EDGE_BUILD} STREQUAL "yes")
++  include (CMake/dkms-edge.cmake)
++else()
++  include (CMake/dkms.cmake)
++  include (CMake/dkms-aws.cmake)
++  include (CMake/dkms-azure.cmake)
++  include (CMake/dkms-container.cmake)
++endif()
+ 
+ # --- ICD ---
+ include (CMake/icd.cmake)
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 4533aa9a..61b99be8 100644
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -26,6 +26,19 @@ if (DEFINED ENV{XRT_NATIVE_BUILD})
+   set(XRT_NATIVE_BUILD $ENV{XRT_NATIVE_BUILD})
+ endif()
+ 
++message("-- XRT_NATIVE_BUILD is ${XRT_NATIVE_BUILD}")
++
++set(XRT_EDGE_BUILD "no")
++if (XRT_NATIVE_BUILD STREQUAL "no")
++  set(XRT_EDGE_BUILD "no")
++endif()
++
++if (DEFINED ENV{XRT_EDGE_BUILD})
++  set(XRT_EDGE_BUILD $ENV{XRT_EDGE_BUILD})
++endif()
++
++message("-- XRT_EDGE_BUILD is ${XRT_EDGE_BUILD}")
++
+ if (NOT CMAKE_BUILD_TYPE)
+   set (CMAKE_BUILD_TYPE RelWithDebInfo)
+ endif (NOT CMAKE_BUILD_TYPE)
+diff --git a/src/runtime_src/CMakeLists.txt b/src/runtime_src/CMakeLists.txt
+index 3df0a136..b949a753 100644
+--- a/src/runtime_src/CMakeLists.txt
++++ b/src/runtime_src/CMakeLists.txt
+@@ -27,7 +27,7 @@ endif()
+ add_compile_options("-fPIC")
+ 
+ # TODO CL_TARGET_OPENCL_VERSION is not defined..
+-if (${XRT_NATIVE_BUILD} STREQUAL "yes")
++if (${XRT_EDGE_BUILD} STREQUAL "no")
+   add_compile_options("-Wall" "-Werror")
+ endif()
+ add_subdirectory(xdp)
+diff --git a/src/runtime_src/core/CMakeLists.txt b/src/runtime_src/core/CMakeLists.txt
+index 0d6cbaa2..da8a3f6c 100644
+--- a/src/runtime_src/core/CMakeLists.txt
++++ b/src/runtime_src/core/CMakeLists.txt
+@@ -4,9 +4,9 @@ include_directories(
+ 
+ add_subdirectory(include)
+ add_subdirectory(common)
+- if (${XRT_NATIVE_BUILD} STREQUAL "yes")
++ if (${XRT_EDGE_BUILD} STREQUAL "yes")
++   add_subdirectory(edge)
++ else()
+    add_subdirectory(pcie)
+    add_subdirectory(tools)
+- else()
+-   add_subdirectory(edge)
+  endif()
