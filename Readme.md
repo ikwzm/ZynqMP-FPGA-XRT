@@ -101,6 +101,29 @@ Loading new XRT Linux kernel modules
 Skipping pyopencl installation...
 ```
 
+### Install XRT-Setup Debian Package
+
+```console
+shell$ sudo apt install ./xrt-setup_2.6.0-1_arm64.deb
+Reading package lists... Done
+Building dependency tree
+Reading state information... Done
+Note, selecting 'xrt-setup' instead of './xrt-setup_2.6.0-1_arm64.deb'
+The following NEW packages will be installed:
+  xrt-setup
+0 upgraded, 1 newly installed, 0 to remove and 71 not upgraded.
+After this operation, 30.7 kB of additional disk space will be used.
+Get:1 /home/fpga/work/ZynqMP-FPGA-XRT/xrt-setup_2.6.0-1_arm64.deb xrt-setup arm64 2.6.0-1 [1,276 B]
+debconf: unable to initialize frontend: Dialog
+debconf: (Dialog frontend will not work on a dumb terminal, an emacs shell buff\
+er, or without a controlling terminal.)
+debconf: falling back to frontend: Readline
+
+Selecting previously unselected package xrt-setup.
+(Reading database ... 115056 files and directories currently installed.)
+Preparing to unpack .../xrt-setup_2.6.0-1_arm64.deb ...
+```
+
 Device Tree
 ---------------------------------------------------------------------
 
