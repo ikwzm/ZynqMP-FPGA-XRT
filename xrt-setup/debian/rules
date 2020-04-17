@@ -6,13 +6,13 @@ kernel_release ?= $(shell uname -r)
 arch           ?= $(shell uname -m | sed -e s/arm.*/arm/ -e s/aarch64.*/arm64/)
 deb_arch       ?= $(shell dpkg --print-architecture)
 
-xrt_binaries   :=   \
-	skd         \
-	unwrapped   \
-	xbutil      \
-	xclbincat   \
-	xclbinsplit \
-	xclbinutil  \
+xrt_binaries   :=    \
+	skd          \
+	unwrapped    \
+	xbutil       \
+	xclbincat    \
+	xclbinsplit  \
+	xclbinutil   \
 	$(ENDLIST)
 
 xrt_libraries  :=                            \
@@ -53,7 +53,8 @@ binary-arch: build
 		ln -s /opt/xilinx/xrt/bin/$$bin debian/tmp/usr/bin/$$bin; \
 	done
 	for lib in $(xrt_libraries); do \
-		ln -s /opt/xilinx/xrt/lib/$$lib debian/tmp/usr/lib/$$lib; \
+		ln -s /opt/xilinx/xrt/lib/$$lib   debian/tmp/usr/lib/$$lib;   \
+		ln -s /opt/xilinx/xrt/lib/$$lib.2 debian/tmp/usr/lib/$$lib.2; \
 	done
 	dpkg-gencontrol -DArchitecture=$(deb_arch)
 	cp -a debian/postinst       debian/tmp/DEBIAN
