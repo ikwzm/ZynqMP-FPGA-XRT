@@ -1,0 +1,67 @@
+#!/usr/bin/make -f
+# -*- makefile -*-
+
+package         = xrt-setup
+kernel_release ?= $(shell uname -r)
+arch           ?= $(shell uname -m | sed -e s/arm.*/arm/ -e s/aarch64.*/arm64/)
+deb_arch       ?= $(shell dpkg --print-architecture)
+
+xrt_binaries   :=   \
+	skd         \
+	unwrapped   \
+	xbutil      \
+	xclbincat   \
+	xclbinsplit \
+	xclbinutil  \
+	$(ENDLIST)
+
+xrt_libraries  :=                            \
+	libcommon_em.so                      \
+	liboclxdp.so                         \
+	libxdp.so                            \
+	libxdp_appdebug_plugin.so            \
+	libxdp_core.so                       \
+	libxdp_debug_plugin.so               \
+	libxdp_hal_api_interface_plugin.so   \
+	libxdp_hal_plugin.so                 \
+	libxdp_lop_plugin.so                 \
+	libxilinxopencl.so                   \
+	libxma2api.so                        \
+	libxma2plugin.so                     \
+	libxmaapi.so                         \
+	libxmaplugin.so                      \
+	libxrt++.so                          \
+	libxrt_core.so                       \
+	libxrt_coreutil.so                   \
+	libxrt_hwemu.so                      \
+	libxrt_swemu.so                      \
+	$(ENDLIST)
+
+clean:
+	rm -f build
+	rm -rf debian/tmp debian/*~ debian/files* debian/substvars
+
+build:
+	touch build
+
+binary-indep: build
+
+binary-arch: build
+	rm -rf debian/tmp
+	install -d debian/tmp/DEBIAN debian/tmp/usr/bin/ debian/tmp/usr/lib/
+	for bin in $(xrt_binaries); do \
+		ln -s /opt/xilinx/xrt/bin/$$bin debian/tmp/usr/bin/$$bin; \
+	done
+	for lib in $(xrt_libraries); do \
+		ln -s /opt/xilinx/xrt/lib/$$lib debian/tmp/usr/lib/$$lib; \
+	done
+	dpkg-gencontrol -DArchitecture=$(deb_arch)
+	cp -a debian/postinst       debian/tmp/DEBIAN
+	cp -a debian/prerm          debian/tmp/DEBIAN
+	cp -a debian/postrm         debian/tmp/DEBIAN
+	chown -R root:root debian/tmp
+	chmod -$ u+w,go=rX debian/tmp
+	dpkg-deb --build debian/tmp ..
+
+binary: binary-indep binary-arch
+

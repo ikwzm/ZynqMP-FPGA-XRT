@@ -1,0 +1,14 @@
+Source: xrt-setup
+Section: devel
+Priority: optional
+Maintainer: ikwzm <ichiro_k@ca2.so-net.ne.jp>
+Build-Depends: debhelper (>= 9), bzip2
+Standards-Version: 3.9.6
+Homepage: <https://github.com/ikwzm/ZynqMP-FPGA-XRT>
+
+Package: xrt-setup
+Architecture: any
+Provides: xrt
+Depends: ${shlibs:Depends}, ${misc:Depends}
+Description: XRT(Xilinx RunTime) Setup Package
+
