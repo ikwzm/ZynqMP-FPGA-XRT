@@ -17,16 +17,11 @@ The source code of XRT is published on github.
 
 ### What is ZynqMP-FPGA-Linux
 
-I have released Debian GNU/Linux on github for UltraZed/Ultra96/Ultra96-V2.
-I have also released Ubuntu18.04 on github for Ultra96/Ultra96-V2.
 I have also released Ubuntu20.04 on github for Ultra96/Ultra96-V2.
 
-  * https://github.com/ikwzm/ZynqMP-FPGA-Linux
-  * https://github.com/ikwzm/ZynqMP-FPGA-Ubuntu18.04-Ultra96
   * https://github.com/ikwzm/ZynqMP-FPGA-Ubuntu20.04-Ultra96
 
-The Debian Package published in this repository is for ZynqMP-FPGA-Linux, 
-ZynqMP-FPGA-Ubuntu18.04-Ultra96 or ZynqMP-FPGA-Ubuntu20.04-Ultra96 mentioned above.
+The Debian Package published in this repository is for ynqMP-FPGA-Ubuntu20.04-Ultra96 mentioned above.
 
 
 Install
@@ -35,7 +30,7 @@ Install
 ### Download
 
 ```console
-shell$ git clone https://github.com/ikwzm/ZynqMP-FPGA-XRT.git
+shell$ git clone --depth 1 --branch 2020.2_EDGE_1_Ubuntu_20.04 https://github.com/ikwzm/ZynqMP-FPGA-XRT.git
 ```
 
 ### Preparing for installation
@@ -52,55 +47,47 @@ Installing pyopencl pre-built for Debian/Ubuntu from the beginning will save you
 
 ### Install XRT Debian Package
 
-Install xrt_202010.2.6.0_Ubuntu_18.04-arm64-xrt.deb with the apt command.
+Install xrt_202020.2.8.1_Edge_Ubuntu_20.04-arm64.deb with the apt command.
 When installing this package, build the zocl kernel module using the dkms mechanism during the process. Therefore, installation takes time.
 
 
 ```console
-shell$ sudo apt install ./xrt_202010.2.6.0_Ubuntu_18.04-arm64-xrt.deb
+shell$ sudo apt-get install ./xrt_202020.2.8.1_Edge_Ubuntu_20.04-arm64.deb
 Reading package lists... Done
 Building dependency tree
 Reading state information... Done
-Note, selecting 'xrt' instead of './xrt_202010.2.6.0_Ubuntu_18.04-arm64-xrt.deb'
-The following packages were automatically installed and are no longer required:
-  libgl2ps1.4 libibverbs1 liblept5 libnetcdf-c++4 libnl-route-3-200
-  libopencv-flann-dev libopencv-flann3.2 libopencv-ml-dev libopencv-ml3.2
-  libopencv-photo-dev libopencv-photo3.2 libopencv-shape-dev
-  libopencv-shape3.2 libopencv-ts-dev libopencv-video-dev libopencv-video3.2
-  libtcl8.6 libtesseract4 libtk8.6 libxss1
-Use 'sudo apt autoremove' to remove them.
+Note, selecting 'xrt' instead of './xrt_202020.2.8.1_Edge_Ubuntu_20.04-arm64.deb'
 The following NEW packages will be installed:
   xrt
-0 upgraded, 1 newly installed, 0 to remove and 50 not upgraded.
-Need to get 0 B/8,150 kB of archives.
-After this operation, 49.0 MB of additional disk space will be used.
-Get:1 /home/fpga/work/ZynqMP-FPGA-XRT/xrt_202010.2.6.0_Ubuntu_18.04-arm64-xrt.deb xrt arm64 2.6.0 [8,150 kB]
-Selecting previously unselected package xrt.
-(Reading database ... 114691 files and directories currently installed.)
-Preparing to unpack .../xrt_202010.2.6.0_Ubuntu_18.04-arm64-xrt.deb ...
-Unpacking xrt (2.6.0) ...
-Setting up xrt (2.6.0) ...
-Unloading old XRT Linux kernel modules
-rmmod: ERROR: Module zocl is not currently loaded
-Invoking DKMS common.postinst for xrt
-Loading new xrt-2.6.0 DKMS files...
-Building for 4.19.0-xlnx-v2019.2-zynqmp-fpga
-Building initial module for 4.19.0-xlnx-v2019.2-zynqmp-fpga
-Done.
+  0 upgraded, 1 newly installed, 0 to remove and 449 not upgraded.
+  Need to get 0 B/6307 kB of archives.
+  After this operation, 40.2 MB of additional disk space will be used.
+  Get:1 /home/fpga/debian/ZynqMP-FPGA-XRT/xrt_202020.2.8.1_Edge_Ubuntu_20.04-arm64.deb xrt arm64 2.8.1 [6307 kB]
+  Selecting previously unselected package xrt.
+  (Reading database ... 211957 files and directories currently installed.)
+  Preparing to unpack .../xrt_202020.2.8.1_Edge_Ubuntu_20.04-arm64.deb ...
+  Unpacking xrt (2.8.1) ...
+  Setting up xrt (2.8.1) ...
+  Unloading old XRT Linux kernel modules
+  rmmod: ERROR: Module zocl is not currently loaded
+  Invoking DKMS common.postinst for xrt
+  Loading new xrt-2.8.1 DKMS files...
+  Building for 5.4.0-xlnx-v2020.2-zynqmp-fpga
+  Building initial module for 5.4.0-xlnx-v2020.2-zynqmp-fpga
+  Done.
 
-zocl:
+zocl.ko:
 Running module version sanity check.
  - Original module
-   - No original module exists within this kernel
- - Installation
-   - Installing to /lib/modules/4.19.0-xlnx-v2019.2-zynqmp-fpga/updates/dkms/
+    - No original module exists within this kernel
+     - Installation
+        - Installing to /lib/modules/5.4.0-xlnx-v2020.2-zynqmp-fpga/updates/dkms/
 
-depmod...
+depmod....
 
 DKMS: install completed.
 Finished DKMS common.postinst
 Loading new XRT Linux kernel modules
-Skipping pyopencl installation...
 ```
 
 ### Install XRT-Setup Debian Package
