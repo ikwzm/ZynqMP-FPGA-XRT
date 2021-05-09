@@ -19,12 +19,14 @@ The source code of XRT is published on github.
 
 I have released Debian GNU/Linux on github for UltraZed/Ultra96/Ultra96-V2.
 I have also released Ubuntu18.04 on github for Ultra96/Ultra96-V2.
+I have also released Ubuntu20.04 on github for Ultra96/Ultra96-V2.
 
   * https://github.com/ikwzm/ZynqMP-FPGA-Linux
   * https://github.com/ikwzm/ZynqMP-FPGA-Ubuntu18.04-Ultra96
+  * https://github.com/ikwzm/ZynqMP-FPGA-Ubuntu20.04-Ultra96
 
-The Debian Package published in this repository is for ZynqMP-FPGA-Linux or
-ZynqMP-FPGA-Ubuntu18.04-Ultra96 mentioned above.
+The Debian Package published in this repository is for ZynqMP-FPGA-Linux, 
+ZynqMP-FPGA-Ubuntu18.04-Ultra96 or ZynqMP-FPGA-Ubuntu20.04-Ultra96 mentioned above.
 
 
 Install
@@ -104,24 +106,21 @@ Skipping pyopencl installation...
 ### Install XRT-Setup Debian Package
 
 ```console
-shell$ sudo apt install ./xrt-setup_2.6.0-1_arm64.deb
+shell$ apt-get install ./xrt-setup_2.8.0-1_arm64.deb
 Reading package lists... Done
 Building dependency tree
 Reading state information... Done
-Note, selecting 'xrt-setup' instead of './xrt-setup_2.6.0-1_arm64.deb'
+Note, selecting 'xrt-setup' instead of './xrt-setup_2.8.0-1_arm64.deb'
 The following NEW packages will be installed:
   xrt-setup
-0 upgraded, 1 newly installed, 0 to remove and 71 not upgraded.
-After this operation, 30.7 kB of additional disk space will be used.
-Get:1 /home/fpga/work/ZynqMP-FPGA-XRT/xrt-setup_2.6.0-1_arm64.deb xrt-setup arm64 2.6.0-1 [1,276 B]
-debconf: unable to initialize frontend: Dialog
-debconf: (Dialog frontend will not work on a dumb terminal, an emacs shell buff\
-er, or without a controlling terminal.)
-debconf: falling back to frontend: Readline
-
-Selecting previously unselected package xrt-setup.
-(Reading database ... 115056 files and directories currently installed.)
-Preparing to unpack .../xrt-setup_2.6.0-1_arm64.deb ...
+  0 upgraded, 1 newly installed, 0 to remove and 449 not upgraded.
+  After this operation, 43.0 kB of additional disk space will be used.
+  Get:1 /home/fpga/debian/ZynqMP-FPGA-XRT/xrt-setup_2.8.0-1_arm64.deb xrt-setup arm64 2.8.0-1 [1336 B]
+  Selecting previously unselected package xrt-setup.
+  (Reading database ... 212195 files and directories currently installed.)
+  Preparing to unpack .../xrt-setup_2.8.0-1_arm64.deb ...
+  Unpacking xrt-setup (2.8.0-1) ...
+  Setting up xrt-setup (2.8.0-1) ...
 ```
 
 Device Tree
