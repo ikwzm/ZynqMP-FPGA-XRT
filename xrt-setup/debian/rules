@@ -9,32 +9,28 @@ deb_arch       ?= $(shell dpkg --print-architecture)
 xrt_binaries   :=    \
 	skd          \
 	unwrapped    \
+	xbmgmt       \
 	xbutil       \
-	xclbincat    \
-	xclbinsplit  \
 	xclbinutil   \
 	$(ENDLIST)
 
 xrt_libraries  :=                            \
-	libcommon_em.so                      \
-	liboclxdp.so                         \
-	libxdp.so                            \
-	libxdp_appdebug_plugin.so            \
-	libxdp_core.so                       \
-	libxdp_debug_plugin.so               \
-	libxdp_hal_api_interface_plugin.so   \
-	libxdp_hal_plugin.so                 \
-	libxdp_lop_plugin.so                 \
-	libxilinxopencl.so                   \
-	libxma2api.so                        \
-	libxma2plugin.so                     \
-	libxmaapi.so                         \
-	libxmaplugin.so                      \
-	libxrt++.so                          \
-	libxrt_core.so                       \
-	libxrt_coreutil.so                   \
-	libxrt_hwemu.so                      \
-	libxrt_swemu.so                      \
+	libcommon_em.so    \
+	liboclxdp.so       \
+	libsched_em.so     \
+	libsched_em_v30.so \
+	libxdp.so          \
+	libxdp_core.so     \
+	libxilinxopencl.so \
+	libxma2api.so      \
+	libxma2plugin.so   \
+	libxmaapi.so       \
+	libxmaplugin.so    \
+	libxrt++.so        \
+	libxrt_core.so     \
+	libxrt_coreutil.so \
+	libxrt_hwemu.so    \
+	libxrt_swemu.so    \
 	$(ENDLIST)
 
 clean:
