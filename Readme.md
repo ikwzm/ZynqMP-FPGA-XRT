@@ -18,15 +18,10 @@ The source code of XRT is published on github.
 ### What is ZynqMP-FPGA-Linux
 
 I have released Debian GNU/Linux on github for UltraZed/Ultra96/Ultra96-V2.
-I have also released Ubuntu18.04 on github for Ultra96/Ultra96-V2.
-I have also released Ubuntu20.04 on github for Ultra96/Ultra96-V2.
 
   * https://github.com/ikwzm/ZynqMP-FPGA-Linux
-  * https://github.com/ikwzm/ZynqMP-FPGA-Ubuntu18.04-Ultra96
-  * https://github.com/ikwzm/ZynqMP-FPGA-Ubuntu20.04-Ultra96
 
-The Debian Package published in this repository is for ZynqMP-FPGA-Linux, 
-ZynqMP-FPGA-Ubuntu18.04-Ultra96 or ZynqMP-FPGA-Ubuntu20.04-Ultra96 mentioned above.
+The Debian Package published in this repository is for ZynqMP-FPGA-Linux mentioned above.
 
 
 Install
@@ -35,7 +30,7 @@ Install
 ### Download
 
 ```console
-shell$ git clone https://github.com/ikwzm/ZynqMP-FPGA-XRT.git
+shell$ git clone --depth 1 --branch 2020.2_EDGE_1_Debian_10 https://github.com/ikwzm/ZynqMP-FPGA-XRT.git
 ```
 
 ### Preparing for installation
@@ -101,6 +96,7 @@ DKMS: install completed.
 Finished DKMS common.postinst
 Loading new XRT Linux kernel modules
 Skipping pyopencl installation...
+
 ```
 
 ### Install XRT-Setup Debian Package
