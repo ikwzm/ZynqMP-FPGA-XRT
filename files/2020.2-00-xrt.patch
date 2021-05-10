@@ -1,0 +1,199 @@
+diff --git a/build/build.sh b/build/build.sh
+index 31ed86b8..1ae86377 100755
+--- a/build/build.sh
++++ b/build/build.sh
+@@ -261,6 +261,31 @@ if [[ $CPU != "aarch64" ]] && [[ $edge == 1 ]]; then
+   cd $BUILDDIR
+ fi
+     
++if [[ $CPU == "aarch64" ]] && [[ $edge == 1 ]]; then
++  mkdir -p $edge_dir
++  cd $edge_dir
++  if [[ $nocmake == 0 ]]; then
++    echo "env XRT_EDGE_BUILD=yes $CMAKE -DRDI_CCACHE=$ccache -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=ON ../../src"
++    time  env XRT_EDGE_BUILD=yes $CMAKE -DRDI_CCACHE=$ccache -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=ON ../../src
++  fi
++
++  if [[ $nobuild == 0 ]]; then
++      echo "make -j $jcore $verbose DESTDIR=$PWD install"
++      time make -j $jcore $verbose DESTDIR=$PWD install
++
++      if [[ $noctest == 0 ]]; then
++          time ctest --output-on-failure
++      fi
++
++      time make package
++  fi
++
++  if [[ $docs == 1 ]]; then
++      echo "make xrt_docs"
++      make xrt_docs
++  fi
++fi
++    
+     
+ if [[ $clangtidy == 1 ]]; then
+     echo "make clang-tidy"
+diff --git a/src/CMake/cpackLin.cmake b/src/CMake/cpackLin.cmake
+index 0f38c922..3d32674f 100644
+--- a/src/CMake/cpackLin.cmake
++++ b/src/CMake/cpackLin.cmake
+@@ -84,6 +84,11 @@ if (${LINUX_FLAVOR} MATCHES "^(Ubuntu|Debian)")
+     SET(CPACK_DEBIAN_PACKAGE_DEPENDS ${CPACK_DEBIAN_XRT_PACKAGE_DEPENDS})
+   endif()
+ 
++  if (${XRT_EDGE_BUILD} STREQUAL "yes")
++    SET(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA "${CMAKE_CURRENT_BINARY_DIR}/postinst;${CMAKE_CURRENT_BINARY_DIR}/prerm")
++    SET(CPACK_DEBIAN_PACKAGE_DEPENDS ${CPACK_DEBIAN_XRT_PACKAGE_DEPENDS})
++  endif()
++
+ elseif (${LINUX_FLAVOR} MATCHES "^(RedHat|CentOS|Amazon|Fedora)")
+   execute_process(
+     COMMAND uname -m
+@@ -140,7 +145,11 @@ else ()
+   SET (CPACK_GENERATOR "TGZ")
+ endif()
+ 
+-SET(CPACK_PACKAGE_FILE_NAME "${CPACK_PACKAGE_NAME}_${XRT_VERSION_RELEASE}.${CPACK_PACKAGE_VERSION_MAJOR}.${CPACK_PACKAGE_VERSION_MINOR}.${CPACK_PACKAGE_VERSION_PATCH}_${CPACK_REL_VER}-${CPACK_ARCH}")
++if (${XRT_EDGE_BUILD} STREQUAL "yes")
++   SET(CPACK_PACKAGE_FILE_NAME "${CPACK_PACKAGE_NAME}_${XRT_VERSION_RELEASE}.${CPACK_PACKAGE_VERSION_MAJOR}.${CPACK_PACKAGE_VERSION_MINOR}.${CPACK_PACKAGE_VERSION_PATCH}_Edge_${LINUX_FLAVOR}_${CPACK_REL_VER}-${CPACK_ARCH}")
++else()
++   SET(CPACK_PACKAGE_FILE_NAME "${CPACK_PACKAGE_NAME}_${XRT_VERSION_RELEASE}.${CPACK_PACKAGE_VERSION_MAJOR}.${CPACK_PACKAGE_VERSION_MINOR}.${CPACK_PACKAGE_VERSION_PATCH}_${CPACK_REL_VER}-${CPACK_ARCH}")
++endif()
+ 
+ message("-- ${CMAKE_BUILD_TYPE} ${PACKAGE_KIND} package")
+ 
+diff --git a/src/CMake/dkms-edge.cmake b/src/CMake/dkms-edge.cmake
+index 48e4ad1e..83d9d8ec 100644
+--- a/src/CMake/dkms-edge.cmake
++++ b/src/CMake/dkms-edge.cmake
+@@ -35,6 +35,7 @@ SET (XRT_DKMS_CORE_COMMON_DRV ${XRT_DKMS_CORE_DIR}/common/drv)
+ 
+ SET (XRT_DKMS_DRIVER_SRCS
+   zocl/include/sched_exec.h
++  zocl/include/zocl_aie.h
+   zocl/include/zocl_bo.h
+   zocl/include/zocl_cu.h
+   zocl/include/zocl_dma.h
+@@ -53,6 +54,7 @@ SET (XRT_DKMS_DRIVER_SRCS
+   zocl/LICENSE
+   zocl/Makefile
+   zocl/sched_exec.c
++  zocl/zocl_aie.c
+   zocl/zocl_bo.c
+   zocl/zocl_cu.c
+   zocl/zocl_dma.c
+@@ -86,6 +88,7 @@ SET (XRT_DKMS_COMMON_XRT_DRV
+   common/drv/xrt_cu.c
+   common/drv/cu_hls.c
+   common/drv/cu_plram.c
++  common/drv/fast_adapter.c
+   common/drv/xrt_xclbin.c
+   common/drv/Makefile
+   )
+diff --git a/src/CMake/nativeLnx.cmake b/src/CMake/nativeLnx.cmake
+index aba8d5ca..7ab067ba 100644
+--- a/src/CMake/nativeLnx.cmake
++++ b/src/CMake/nativeLnx.cmake
+@@ -161,10 +161,14 @@ include (CMake/lint.cmake)
+ 
+ set (XRT_DKMS_DRIVER_SRC_BASE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/runtime_src/core")
+ 
+-include (CMake/dkms.cmake)
+-include (CMake/dkms-aws.cmake)
+-include (CMake/dkms-azure.cmake)
+-include (CMake/dkms-container.cmake)
++if (${XRT_EDGE_BUILD} STREQUAL "yes")
++  include (CMake/dkms-edge.cmake)
++else()
++  include (CMake/dkms.cmake)
++  include (CMake/dkms-aws.cmake)
++  include (CMake/dkms-azure.cmake)
++  include (CMake/dkms-container.cmake)
++endif()
+ 
+ # --- ICD ---
+ include (CMake/icd.cmake)
+diff --git a/src/CMake/nativeTests.cmake b/src/CMake/nativeTests.cmake
+index 9f53ad61..25e0d19d 100644
+--- a/src/CMake/nativeTests.cmake
++++ b/src/CMake/nativeTests.cmake
+@@ -3,13 +3,17 @@
+ # XRT_INSTALL_BIN_DIR
+ 
+ enable_testing()
++if (${XRT_EDGE_BUILD} STREQUAL "no")
+ add_test(NAME xbmgmt
+   COMMAND ${CMAKE_BINARY_DIR}/runtime_src/core/pcie/tools/xbmgmt/xbmgmt scan
+   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
++endif()
+ 
++if (${XRT_EDGE_BUILD} STREQUAL "no")
+ add_test(NAME xbutil
+   COMMAND ${CMAKE_BINARY_DIR}/runtime_src/core/pcie/tools/xbutil/xbutil scan
+   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
++endif()
+ 
+ add_test(NAME xbutil2
+   COMMAND ${CMAKE_BINARY_DIR}/runtime_src/core/tools/xbutil2/xbutil2 --new scan
+@@ -19,4 +23,6 @@ add_test(NAME xbmgmt2
+   COMMAND ${CMAKE_BINARY_DIR}/runtime_src/core/tools/xbmgmt2/xbmgmt2 --new scan
+   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
+ 
+-set_tests_properties(xbutil xbmgmt PROPERTIES ENVIRONMENT INTERNAL_BUILD=1)
++if (${XRT_EDGE_BUILD} STREQUAL "no")
++  set_tests_properties(xbutil xbmgmt PROPERTIES ENVIRONMENT INTERNAL_BUILD=1)
++endif()
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index b1b6c645..8cb46a32 100644
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -27,6 +27,15 @@ if (DEFINED ENV{XRT_NATIVE_BUILD})
+   set(XRT_NATIVE_BUILD $ENV{XRT_NATIVE_BUILD})
+ endif()
+ 
++set(XRT_EDGE_BUILD "no")
++if (XRT_NATIVE_BUILD STREQUAL "no")
++  set(XRT_EDGE_BUILD "no")
++endif()
++
++if (DEFINED ENV{XRT_EDGE_BUILD})
++  set(XRT_EDGE_BUILD $ENV{XRT_EDGE_BUILD})
++endif()
++
+ if (NOT CMAKE_BUILD_TYPE)
+   set (CMAKE_BUILD_TYPE RelWithDebInfo)
+ endif (NOT CMAKE_BUILD_TYPE)
+diff --git a/src/runtime_src/CMakeLists.txt b/src/runtime_src/CMakeLists.txt
+index 43ba7773..bec9d4b3 100644
+--- a/src/runtime_src/CMakeLists.txt
++++ b/src/runtime_src/CMakeLists.txt
+@@ -24,7 +24,7 @@ endif()
+ add_compile_options("-fPIC")
+ 
+ # TODO CL_TARGET_OPENCL_VERSION is not defined..
+-if (${XRT_NATIVE_BUILD} STREQUAL "yes")
++if (${XRT_EDGE_BUILD} STREQUAL "no")
+   add_compile_options("-Wall" "-Werror")
+ endif()
+ add_subdirectory(xdp)
+diff --git a/src/runtime_src/core/CMakeLists.txt b/src/runtime_src/core/CMakeLists.txt
+index ed308ff9..feb3ad03 100644
+--- a/src/runtime_src/core/CMakeLists.txt
++++ b/src/runtime_src/core/CMakeLists.txt
+@@ -3,12 +3,12 @@ include_directories(
+   )
+ 
+ add_subdirectory(include)
+- if (${XRT_NATIVE_BUILD} STREQUAL "yes")
++ if (${XRT_EDGE_BUILD} STREQUAL "yes")
+    add_subdirectory(common)
+-   add_subdirectory(pcie)
++   add_subdirectory(edge)
+    add_subdirectory(tools)
+  else()
+    add_subdirectory(common)
+-   add_subdirectory(edge)
++   add_subdirectory(pcie)
+    add_subdirectory(tools)
+  endif()

@@ -1,0 +1,170 @@
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 8cb46a32..dca721a9 100644
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -70,7 +70,7 @@ SET(XRT_VERSION_MINOR 8)
+ if (DEFINED ENV{XRT_VERSION_PATCH})
+   SET(XRT_VERSION_PATCH $ENV{XRT_VERSION_PATCH})
+ else(DEFINED $ENV{XRT_VERSION_PATCH})
+-  SET(XRT_VERSION_PATCH 0)
++  SET(XRT_VERSION_PATCH 1)
+ endif(DEFINED ENV{XRT_VERSION_PATCH})
+ 
+ #set(XRT_SOVERSION ${XRT_VERSION_MAJOR}.${XRT_VERSION_MINOR})
+diff --git a/src/runtime_src/core/edge/user/shim.cpp b/src/runtime_src/core/edge/user/shim.cpp
+index df0ff366..143e3264 100644
+--- a/src/runtime_src/core/edge/user/shim.cpp
++++ b/src/runtime_src/core/edge/user/shim.cpp
+@@ -38,6 +38,7 @@
+ #include <cassert>
+ #include <cstdarg>
+ 
++#include <dirent.h>
+ #include <fcntl.h>
+ #include <poll.h>
+ #include <unistd.h>
+@@ -90,6 +91,98 @@ namespace ZYNQ {
+ //initializing static member
+ std::map<uint64_t, uint32_t *> shim::mKernelControl;
+ 
++class scanner {
++private:
++  std::mutex lock;
++  std::vector<std::string> dev_name_list;
++  void rescan_nolock(void)
++  {
++    const std::string dri_path      = "/dev/dri";
++    const std::string render_prefix = "renderD";
++    const std::string drm_name      = "zocl";
++
++    DIR* dp = opendir(dri_path.c_str());
++    if (dp) {
++      struct dirent* entry;
++      drm_version    version;
++      const std::unique_ptr<char[]> path(new char[512]);
++      const std::unique_ptr<char[]> name(new char[128]);
++      const std::unique_ptr<char[]> desc(new char[512]);
++      const std::unique_ptr<char[]> date(new char[128]);
++      std::memset(&version, 0, sizeof(version));
++      version.name     = name.get();
++      version.name_len = 128;
++      version.desc     = desc.get();
++      version.desc_len = 512;
++      version.date     = date.get();
++      version.date_len = 128;
++        
++      while ((entry = readdir(dp))) {
++        int fd;
++        if (std::strncmp(entry->d_name, render_prefix.c_str(), render_prefix.length()) != 0)
++          continue;
++        sprintf(path.get(), "%s/%s", dri_path.c_str(), entry->d_name);
++        if ((fd = open(path.get(), O_RDWR, 0)) < 0)
++          continue;
++        if (ioctl(fd, DRM_IOCTL_VERSION, &version) == 0) {
++          if (std::strncmp(version.name, drm_name.c_str(), drm_name.length()) == 0) {
++            std::string dev_name(path.get());
++            dev_name_list.insert(dev_name_list.begin(), dev_name);
++          }
++        }
++        close(fd);
++      }
++      std::sort(dev_name_list.begin(), dev_name_list.end());
++      closedir(dp);
++    }
++  }
++public:
++  static scanner *get()
++  {
++    static scanner scanner;
++    return &scanner;
++  }
++
++  void rescan(void)
++  {
++    std::lock_guard<std::mutex> l(lock);
++    rescan_nolock();
++  }
++
++  size_t dev_num_total(void)
++  {
++    std::lock_guard<std::mutex> l(lock);
++    return dev_name_list.size();
++  }
++
++  const std::string& dev_name(int index)
++  {
++    static const std::string null;
++    std::lock_guard<std::mutex> l(lock);
++    if (index >= dev_name_list.size())
++      return null;
++    else
++      return dev_name_list[index];
++  }
++
++private:
++  scanner(void) { rescan_nolock();}
++  scanner(const scanner&  s);
++  scanner& operator=(const scanner& s);
++};
++void rescan(void)
++{
++  scanner::get()->rescan();
++}
++size_t dev_num_total(void)
++{
++  return scanner::get()->dev_num_total();
++}
++const std::string& dev_name(int index)
++{
++  return scanner::get()->dev_name(index);
++}
++
+ shim::
+ shim(unsigned index, const char *logfileName, xclVerbosityLevel verbosity)
+   : mCoreDevice(xrt_core::edge_linux::get_userpf_device(this, index))
+@@ -103,9 +196,13 @@ shim(unsigned index, const char *logfileName, xclVerbosityLevel verbosity)
+ 
+   xclLog(XRT_INFO, "XRT", "%s", __func__);
+ 
+-  mKernelFD = open("/dev/dri/renderD128", O_RDWR);
++  const std::string device_name = dev_name(index);
++  if (device_name.empty()) {
++    xclLog(XRT_ERROR, "XRT", "%s: Card [%d] not found", __func__, index);
++  }
++  mKernelFD = open(device_name.c_str(), O_RDWR, 0);
+   if (!mKernelFD) {
+-    xclLog(XRT_ERROR, "XRT", "%s: Cannot open /dev/dri/renderD128", __func__);
++    xclLog(XRT_ERROR, "XRT", "%s: Cannot open device %s", __func__, device_name.c_str());
+   }
+   mCmdBOCache = std::make_unique<xrt_core::bo_cache>(this, xrt_core::config::get_cmdbo_cache());
+   mDev = zynq_device::get_dev();
+@@ -1536,28 +1633,7 @@ unsigned
+ xclProbe()
+ {
+   PROBE_CB;
+-
+-  int fd = open("/dev/dri/renderD128", O_RDWR);
+-  if (fd < 0) {
+-    return 0;
+-  }
+-  drm_version version;
+-  std::memset(&version, 0, sizeof(version));
+-  version.name = new char[128];
+-  version.name_len = 128;
+-  version.desc = new char[512];
+-  version.desc_len = 512;
+-  version.date = new char[128];
+-  version.date_len = 128;
+-
+-  int result = ioctl(fd, DRM_IOCTL_VERSION, &version);
+-  if (result)
+-    return 0;
+-
+-  result = std::strncmp(version.name, "zocl", 4);
+-  close(fd);
+-
+-  return (result == 0) ? 1 : 0;
++  return (ZYNQ::dev_num_total() > 0);
+ }
+ #endif
+ 
