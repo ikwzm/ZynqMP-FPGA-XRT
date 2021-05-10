@@ -6,7 +6,9 @@ Overview
 
 ### Introduction
 
-This repository provides the XRT(Xilinx Runtime) Debian Package for ZynqMP-FPGA-Linux.
+This repository provides the XRT(Xilinx Runtime) Debian Package for ZynqMP-FPGA-Linux, ZynqMP-FPGA-Ubuntu18.04-Ultra96 and ZynqMP-FPGA-Ubuntu20.04-Ultra96.
+
+**The Debian Packages provided in this repository is not official by Xilinx.**
 
 ### What is XRT
 
@@ -17,157 +19,35 @@ The source code of XRT is published on github.
 
 ### What is ZynqMP-FPGA-Linux
 
+I have released Debian GNU/Linux on github for UltraZed/Ultra96/Ultra96-V2.
+I have also released Ubuntu18.04 on github for Ultra96/Ultra96-V2.
 I have also released Ubuntu20.04 on github for Ultra96/Ultra96-V2.
 
+  * https://github.com/ikwzm/ZynqMP-FPGA-Linux
+  * https://github.com/ikwzm/ZynqMP-FPGA-Ubuntu18.04-Ultra96
   * https://github.com/ikwzm/ZynqMP-FPGA-Ubuntu20.04-Ultra96
 
-The Debian Package published in this repository is for ynqMP-FPGA-Ubuntu20.04-Ultra96 mentioned above.
+The Debian Package published in this repository is for ZynqMP-FPGA-Linux, 
+ZynqMP-FPGA-Ubuntu18.04-Ultra96 or ZynqMP-FPGA-Ubuntu20.04-Ultra96 mentioned above.
 
 
 Install
 ---------------------------------------------------------------------
 
-### Download
+### XRT 2.8.1 
 
-```console
-shell$ git clone --depth 1 --branch 2020.2_EDGE_1_Ubuntu_20.04 https://github.com/ikwzm/ZynqMP-FPGA-XRT.git
-```
+ * [Install to ZynqMP-FPGA-Linux (Debian 10)](docs/install/xrt_2.8.1_Debian_10.md)
+ * [Install to ZynqMP-FPGA-Ubuntu20.04-Ultra96](docs/install/xrt_2.8.1_Ubuntu_20.04.md)
 
-### Preparing for installation
+### XRT 2.6.0 
 
-please install python-pyopencl before installing XRT.
-
-```console
-shell$ sudo apt install -y python-pyopencl
-```
-
-If this package is not installed, it will try to install pyopencl with pip when installing xrt_202010.2.6.0_Ubuntu_18.04-arm64-xrt.deb.
-To install pyopencl with pip, you had to compile a program written in C, and the installation failed due to various troubles.
-Installing pyopencl pre-built for Debian/Ubuntu from the beginning will save you trouble.
-
-### Install XRT Debian Package
-
-Install xrt_202020.2.8.1_Edge_Ubuntu_20.04-arm64.deb with the apt command.
-When installing this package, build the zocl kernel module using the dkms mechanism during the process. Therefore, installation takes time.
-
-
-```console
-shell$ sudo apt-get install ./xrt_202020.2.8.1_Edge_Ubuntu_20.04-arm64.deb
-Reading package lists... Done
-Building dependency tree
-Reading state information... Done
-Note, selecting 'xrt' instead of './xrt_202020.2.8.1_Edge_Ubuntu_20.04-arm64.deb'
-The following NEW packages will be installed:
-  xrt
-  0 upgraded, 1 newly installed, 0 to remove and 449 not upgraded.
-  Need to get 0 B/6307 kB of archives.
-  After this operation, 40.2 MB of additional disk space will be used.
-  Get:1 /home/fpga/debian/ZynqMP-FPGA-XRT/xrt_202020.2.8.1_Edge_Ubuntu_20.04-arm64.deb xrt arm64 2.8.1 [6307 kB]
-  Selecting previously unselected package xrt.
-  (Reading database ... 211957 files and directories currently installed.)
-  Preparing to unpack .../xrt_202020.2.8.1_Edge_Ubuntu_20.04-arm64.deb ...
-  Unpacking xrt (2.8.1) ...
-  Setting up xrt (2.8.1) ...
-  Unloading old XRT Linux kernel modules
-  rmmod: ERROR: Module zocl is not currently loaded
-  Invoking DKMS common.postinst for xrt
-  Loading new xrt-2.8.1 DKMS files...
-  Building for 5.4.0-xlnx-v2020.2-zynqmp-fpga
-  Building initial module for 5.4.0-xlnx-v2020.2-zynqmp-fpga
-  Done.
-
-zocl.ko:
-Running module version sanity check.
- - Original module
-    - No original module exists within this kernel
-     - Installation
-        - Installing to /lib/modules/5.4.0-xlnx-v2020.2-zynqmp-fpga/updates/dkms/
-
-depmod....
-
-DKMS: install completed.
-Finished DKMS common.postinst
-Loading new XRT Linux kernel modules
-```
-
-### Install XRT-Setup Debian Package
-
-```console
-shell$ apt-get install ./xrt-setup_2.8.0-1_arm64.deb
-Reading package lists... Done
-Building dependency tree
-Reading state information... Done
-Note, selecting 'xrt-setup' instead of './xrt-setup_2.8.0-1_arm64.deb'
-The following NEW packages will be installed:
-  xrt-setup
-  0 upgraded, 1 newly installed, 0 to remove and 449 not upgraded.
-  After this operation, 43.0 kB of additional disk space will be used.
-  Get:1 /home/fpga/debian/ZynqMP-FPGA-XRT/xrt-setup_2.8.0-1_arm64.deb xrt-setup arm64 2.8.0-1 [1336 B]
-  Selecting previously unselected package xrt-setup.
-  (Reading database ... 212195 files and directories currently installed.)
-  Preparing to unpack .../xrt-setup_2.8.0-1_arm64.deb ...
-  Unpacking xrt-setup (2.8.0-1) ...
-  Setting up xrt-setup (2.8.0-1) ...
-```
+ * [Install to ZynqMP-FPGA-Linux (Debian 10)](docs/install/xrt_2.6.0_Ubuntu_18.04.md)
+ * [Install to ZynqMP-FPGA-Ubuntu18.04-Ultra96](docs/install/xrt_2.6.0_Ubuntu_18.04.md)
 
 Device Tree
 ---------------------------------------------------------------------
 
-The Debian Package installed in the previous section contains the Linux kernel module zocl for XRT's MPSoC Edge Device. However, zocl is not effective just installed on Linux. Device Tree is required to enable zocl.
-
-ZynqMP-FPGA-Linux supports Device Tree Overlay. Device Tree Overlay actively adds and deletes FPGA programs and kernel modules running Linux. zocl is also enabled using Device Tree Overlay.
-
-The following is an example of Device Tree Overlay to enable zocl.
-
-```devicetree:zocl.dts
-/dts-v1/; /plugin/;
-/ {
-        fragment@0 {
-                target-path = "/fpga-full";
-                __overlay__ {
-                        firmware-name = "streaming_lap_filter5.bin";
-                };
-        };
-        fragment@1 {
-                target-path = "/amba_pl@0";
-                __overlay__ {
-                        #address-cells = <2>;
-                        #size-cells = <1>;
-                        zyxclmm_drm {
-                                compatible = "xlnx,zocl";
-                                status = "okay";
-                                reg = <0x0 0xA0000000 0x10000>;
-                        };
-                        fclk0 {
-                                compatible    = "ikwzm,fclkcfg-0.10.a";
-                                clocks        = <&zynqmp_clk 0x47>;
-                                insert-rate   = "100000000";
-                                insert-enable = <1>;
-                                remove-rate   = "1000000";
-                                remove-enable = <0>;
-                        };
-                };
-        };
-};
-
-```
-
-In this example, the zyxclmm_drm node shows the device tree for zocl.
-
-In addition, there are two more important points in this Device Tree.
-The first is that PL Clock 0 is set to 100MHz in fclk0.
-
-Second, the firmware-name property is added to the fpga-full node to specify a bitstream file.
-This causes the specified bitstream file to be programmed into the FPGA when the Device Tree is overlaid.
-
-The bitstream included in the xclbin file built by Xilinx's software development environment Vitis is actually for Partial Reconfiguration.
-
-Partial Reconfiguration is a technology that dynamically rewrites only a specified area while the FPGA is originally programmed and operating.
-That is, the base bitstream file must be programmed into the FPGA before Partial Reconfiguration.
-At the time of Partial Reconfiguration, unlike the normal FPGA program, reset is not performed for the entire FPGA.
-
-When zocl programs the xclbin file into the FPGA, it programs in Partial Reconfiguration mode.
-Therefore, the base bitstream file must be programmed into the FPGA before enabling the zocl driver.
+ * [Device Tree Example](docs/others/devicetree.md)
 
 Examples
 ---------------------------------------------------------------------
