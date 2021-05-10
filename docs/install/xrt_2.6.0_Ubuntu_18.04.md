@@ -1,4 +1,4 @@
-Install to Ubuntu 18.04 or Debian 10
+Install XRT 2.6.0 to Ubuntu 18.04 or Debian 10
 ---------------------------------------------------------------------
 
 ### Download

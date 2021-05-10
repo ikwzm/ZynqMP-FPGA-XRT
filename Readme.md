@@ -36,13 +36,13 @@ Install
 
 ### XRT 2.8.1 
 
- * [Install to ZynqMP-FPGA-Linux (Debian 10)](docs/install/2020.2_EDGE_1_Debian_10.md)
- * [Install to ZynqMP-FPGA-Ubuntu20.04-Ultra96](docs/install/2020.2_EDGE_1_Ubuntu_20.04.md)
+ * [Install to ZynqMP-FPGA-Linux (Debian 10)](docs/install/xrt_2.8.1_Debian_10.md)
+ * [Install to ZynqMP-FPGA-Ubuntu20.04-Ultra96](docs/install/xrt_2.8.1_Ubuntu_20.04.md)
 
 ### XRT 2.6.0 
 
- * [Install to ZynqMP-FPGA-Linux (Debian 10)](docs/install/2020.1_EDGE_0_Ubuntu_18.04.md)
- * [Install to ZynqMP-FPGA-Ubuntu18.04-Ultra96](docs/install/2020.1_EDGE_0_Ubuntu_18.04.md)
+ * [Install to ZynqMP-FPGA-Linux (Debian 10)](docs/install/xrt_2.6.0_Ubuntu_18.04.md)
+ * [Install to ZynqMP-FPGA-Ubuntu18.04-Ultra96](docs/install/xrt_2.6.0_Ubuntu_18.04.md)
 
 Device Tree
 ---------------------------------------------------------------------
