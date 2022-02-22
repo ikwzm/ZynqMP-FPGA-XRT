@@ -1,0 +1,190 @@
+diff --git a/build/build.sh b/build/build.sh
+index ab88ff5a3..c70a59c47 100755
+--- a/build/build.sh
++++ b/build/build.sh
+@@ -291,6 +291,30 @@ if [[ $CPU != "aarch64" ]] && [[ $edge == 1 ]]; then
+   cd $BUILDDIR
+ fi
+ 
++if [[ $CPU == "aarch64" ]] && [[ $edge == 1 ]]; then
++  mkdir -p $edge_dir
++  cd $edge_dir
++  if [[ $nocmake == 0 ]]; then
++    echo    "XRT_EDGE_BUILD=yes $CMAKE -DRDI_CCACHE=$ccache -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=ON ../../src"
++    time env XRT_EDGE_BUILD=yes $CMAKE -DRDI_CCACHE=$ccache -DCMAKE_BUILD_TYPE=Release -DCMAKE_EXPORT_COMPILE_COMMANDS=ON ../../src
++  fi
++
++  if [[ $nobuild == 0 ]]; then
++      echo "make -j $jcore $verbose DESTDIR=$PWD install"
++      time  make -j $jcore $verbose DESTDIR=$PWD install
++
++      if [[ $noctest == 0 ]]; then
++	  time ctest --output-on-failure
++      fi
++
++      time make package
++  fi
++
++  if [[ $docs == 1 ]]; then
++      echo "make xrt_docs"
++      make xrt_docs
++  fi
++fi
+ 
+ if [[ $checkpatch == 1 ]]; then
+     # check only driver released files
+diff --git a/src/CMake/cpackLin.cmake b/src/CMake/cpackLin.cmake
+index 2cc895182..cb59a320a 100644
+--- a/src/CMake/cpackLin.cmake
++++ b/src/CMake/cpackLin.cmake
+@@ -80,9 +80,9 @@ if (${LINUX_FLAVOR} MATCHES "^(Ubuntu|Debian)")
+       SET(CPACK_DEBIAN_PACKAGE_ARCHITECTURE "armhf")
+       SET(CPACK_ARCH "aarch32")
+     endif()
+-    SET(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA "${CMAKE_CURRENT_BINARY_DIR}/postinst;${CMAKE_CURRENT_BINARY_DIR}/prerm")
+-    SET(CPACK_DEBIAN_PACKAGE_DEPENDS ${CPACK_DEBIAN_XRT_PACKAGE_DEPENDS})
+   endif()
++  SET(CPACK_DEBIAN_PACKAGE_CONTROL_EXTRA "${CMAKE_CURRENT_BINARY_DIR}/postinst;${CMAKE_CURRENT_BINARY_DIR}/prerm")
++  SET(CPACK_DEBIAN_PACKAGE_DEPENDS ${CPACK_DEBIAN_XRT_PACKAGE_DEPENDS})
+ 
+ elseif (${LINUX_FLAVOR} MATCHES "^(RedHat|CentOS|Amazon|Fedora|SUSE)")
+   execute_process(
+@@ -144,7 +144,11 @@ else ()
+   SET (CPACK_GENERATOR "TGZ")
+ endif()
+ 
+-SET(CPACK_PACKAGE_FILE_NAME "${CPACK_PACKAGE_NAME}_${XRT_VERSION_RELEASE}.${CPACK_PACKAGE_VERSION_MAJOR}.${CPACK_PACKAGE_VERSION_MINOR}.${CPACK_PACKAGE_VERSION_PATCH}_${CPACK_REL_VER}-${CPACK_ARCH}")
++if (${XRT_EDGE_BUILD} STREQUAL "yes")
++   SET(CPACK_PACKAGE_FILE_NAME "${CPACK_PACKAGE_NAME}_${XRT_VERSION_RELEASE}.${CPACK_PACKAGE_VERSION_MAJOR}.${CPACK_PACKAGE_VERSION_MINOR}.${CPACK_PACKAGE_VERSION_PATCH}_Edge_${LINUX_FLAVOR}_${CPACK_REL_VER}-${CPACK_ARCH}")
++else()
++   SET(CPACK_PACKAGE_FILE_NAME "${CPACK_PACKAGE_NAME}_${XRT_VERSION_RELEASE}.${CPACK_PACKAGE_VERSION_MAJOR}.${CPACK_PACKAGE_VERSION_MINOR}.${CPACK_PACKAGE_VERSION_PATCH}_${CPACK_REL_VER}-${CPACK_ARCH}")
++endif()
+ 
+ message("-- ${CMAKE_BUILD_TYPE} ${PACKAGE_KIND} package")
+ 
+diff --git a/src/CMake/nativeLnx.cmake b/src/CMake/nativeLnx.cmake
+index de94c8046..855aa8c08 100644
+--- a/src/CMake/nativeLnx.cmake
++++ b/src/CMake/nativeLnx.cmake
+@@ -184,10 +184,14 @@ include (CMake/cpackLin.cmake)
+ 
+ set (XRT_DKMS_DRIVER_SRC_BASE_DIR "${CMAKE_CURRENT_SOURCE_DIR}/runtime_src/core")
+ 
+-include (CMake/dkms.cmake)
+-include (CMake/dkms-aws.cmake)
+-include (CMake/dkms-azure.cmake)
+-include (CMake/dkms-container.cmake)
++if (${XRT_EDGE_BUILD} STREQUAL "yes")
++  include (CMake/dkms-edge.cmake)
++else()
++  include (CMake/dkms.cmake)
++  include (CMake/dkms-aws.cmake)
++  include (CMake/dkms-azure.cmake)
++  include (CMake/dkms-container.cmake)
++endif()
+ 
+ # --- ICD ---
+ include (CMake/icd.cmake)
+diff --git a/src/CMake/nativeTests.cmake b/src/CMake/nativeTests.cmake
+index 591797e5c..c05af8041 100644
+--- a/src/CMake/nativeTests.cmake
++++ b/src/CMake/nativeTests.cmake
+@@ -3,13 +3,17 @@
+ # XRT_INSTALL_BIN_DIR
+ 
+ enable_testing()
++if (${XRT_EDGE_BUILD} STREQUAL "no")
+ add_test(NAME xbmgmt
+   COMMAND ${CMAKE_BINARY_DIR}/runtime_src/core/pcie/tools/xbmgmt/xbmgmt scan
+   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
++endif()
+ 
++if (${XRT_EDGE_BUILD} STREQUAL "no")
+ add_test(NAME xbutil
+   COMMAND ${CMAKE_BINARY_DIR}/runtime_src/core/pcie/tools/xbutil/xbutil scan
+   WORKING_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR})
++endif()
+ 
+ add_test(NAME xbutil2
+   COMMAND ${CMAKE_BINARY_DIR}/runtime_src/core/tools/xbutil2/xbutil2 examine
+@@ -26,4 +30,6 @@ add_test(NAME python_binding
+ set_tests_properties(python_binding PROPERTIES ENVIRONMENT
+   "PYTHONPATH=.${CMAKE_INSTALL_PREFIX}/${XRT_INSTALL_DIR}/python;XILINX_XRT=.${CMAKE_INSTALL_PREFIX}/${XRT_INSTALL_DIR}")
+ 
+-set_tests_properties(xbutil xbmgmt PROPERTIES ENVIRONMENT INTERNAL_BUILD=1)
++if (${XRT_EDGE_BUILD} STREQUAL "no")
++  set_tests_properties(xbutil xbmgmt PROPERTIES ENVIRONMENT INTERNAL_BUILD=1)
++endif()
+diff --git a/src/CMakeLists.txt b/src/CMakeLists.txt
+index 6b2e2c877..ee06feab8 100644
+--- a/src/CMakeLists.txt
++++ b/src/CMakeLists.txt
+@@ -31,6 +31,15 @@ if (DEFINED ENV{XRT_NATIVE_BUILD})
+   set(XRT_NATIVE_BUILD $ENV{XRT_NATIVE_BUILD})
+ endif()
+ 
++set(XRT_EDGE_BUILD "no")
++if (XRT_NATIVE_BUILD STREQUAL "no")
++  set(XRT_EDGE_BUILD "no")
++endif()
++
++if (DEFINED ENV{XRT_EDGE_BUILD})
++  set(XRT_EDGE_BUILD $ENV{XRT_EDGE_BUILD})
++endif()
++
+ if (NOT CMAKE_BUILD_TYPE)
+   set (CMAKE_BUILD_TYPE RelWithDebInfo)
+ endif (NOT CMAKE_BUILD_TYPE)
+diff --git a/src/runtime_src/CMakeLists.txt b/src/runtime_src/CMakeLists.txt
+index bd795ea19..6a12f3961 100644
+--- a/src/runtime_src/CMakeLists.txt
++++ b/src/runtime_src/CMakeLists.txt
+@@ -24,7 +24,7 @@ endif()
+ add_compile_options("-fPIC")
+ 
+ # TODO CL_TARGET_OPENCL_VERSION is not defined..
+-if (${XRT_NATIVE_BUILD} STREQUAL "yes")
++if (${XRT_EDGE_BUILD} STREQUAL "no")
+   add_compile_options("-Wall" "-Werror")
+ endif()
+ add_subdirectory(xdp)
+diff --git a/src/runtime_src/core/CMakeLists.txt b/src/runtime_src/core/CMakeLists.txt
+index ed308ff91..feb3ad031 100644
+--- a/src/runtime_src/core/CMakeLists.txt
++++ b/src/runtime_src/core/CMakeLists.txt
+@@ -3,12 +3,12 @@ include_directories(
+   )
+ 
+ add_subdirectory(include)
+- if (${XRT_NATIVE_BUILD} STREQUAL "yes")
++ if (${XRT_EDGE_BUILD} STREQUAL "yes")
+    add_subdirectory(common)
+-   add_subdirectory(pcie)
++   add_subdirectory(edge)
+    add_subdirectory(tools)
+  else()
+    add_subdirectory(common)
+-   add_subdirectory(edge)
++   add_subdirectory(pcie)
+    add_subdirectory(tools)
+  endif()
+diff --git a/src/runtime_src/tools/scripts/xrtdeps.sh b/src/runtime_src/tools/scripts/xrtdeps.sh
+index 60f2976d0..a8f2577a6 100755
+--- a/src/runtime_src/tools/scripts/xrtdeps.sh
++++ b/src/runtime_src/tools/scripts/xrtdeps.sh
+@@ -219,8 +219,13 @@ ub_package_list()
+     # Use GCC8 on ARM64 Ubuntu as GCC7 randomly crashes with Internal Compiler Error on
+     # Travis CI ARM64 platform
+     if [ $ARCH == "aarch64" ]; then
+-        UB_LIST+=( gcc-8 )
+-        UB_LIST+=( g++-8 )
++        if [ $FLAVOR == "debian" ] && [ $MAJOR == 11 ]; then
++            UB_LIST+=( gcc-10 )
++            UB_LIST+=( g++-10 )
++        else    
++            UB_LIST+=( gcc-8 )
++            UB_LIST+=( g++-8 )
++        fi
+     fi
+ 
+ }
