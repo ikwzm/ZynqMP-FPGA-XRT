@@ -1,0 +1,408 @@
+diff --git a/src/runtime_src/core/edge/user/device_linux.cpp b/src/runtime_src/core/edge/user/device_linux.cpp
+index 00e20a250..5fdd7c7d3 100644
+--- a/src/runtime_src/core/edge/user/device_linux.cpp
++++ b/src/runtime_src/core/edge/user/device_linux.cpp
+@@ -330,7 +330,6 @@ struct aie_reg_read
+ #ifdef XRT_ENABLE_AIE
+ #ifndef __AIESIM__
+   const static std::string AIE_TAG = "aie_metadata";
+-  const static std::string ZOCL_DEVICE = "/dev/dri/renderD128";
+   const uint32_t major = 1;
+   const uint32_t minor = 0;
+   const uint32_t patch = 0;
+@@ -355,9 +354,9 @@ struct aie_reg_read
+                                                              % pt.get<uint32_t>("schema_version.minor")
+                                                              % pt.get<uint32_t>("schema_version.patch")));
+ 
+-  int mKernelFD = open(ZOCL_DEVICE.c_str(), O_RDWR);
++  int mKernelFD = open(dev->device_path.c_str(), O_RDWR);
+   if (!mKernelFD)
+-    throw xrt_core::error(-EINVAL, boost::str(boost::format("Cannot open %s") % ZOCL_DEVICE));
++    throw xrt_core::error(-EINVAL, boost::str(boost::format("Cannot open %s") % dev->device_path));
+ 
+   XAie_DevInst* devInst;         // AIE Device Instance
+ 
+diff --git a/src/runtime_src/core/edge/user/shim.cpp b/src/runtime_src/core/edge/user/shim.cpp
+index 89c720795..aaa2c8214 100644
+--- a/src/runtime_src/core/edge/user/shim.cpp
++++ b/src/runtime_src/core/edge/user/shim.cpp
+@@ -28,6 +28,7 @@
+ #include "core/common/config_reader.h"
+ #include "core/common/query_requests.h"
+ #include "core/common/error.h"
++#include "shim_int.h"
+ 
+ #include <cerrno>
+ #include <iostream>
+@@ -40,6 +41,7 @@
+ #include <cstdarg>
+ 
+ #include <fcntl.h>
++#include <dirent.h>
+ #include <poll.h>
+ #include <unistd.h>
+ #include <sys/ioctl.h>
+@@ -108,12 +110,17 @@ shim(unsigned index)
+ {
+   xclLog(XRT_INFO, "%s", __func__);
+ 
+-  mKernelFD = open("/dev/dri/renderD128", O_RDWR);
+-  if (mKernelFD < 0) {
+-    xclLog(XRT_ERROR, "%s: Cannot open /dev/dri/renderD128", __func__);
++  mDev = zynq_device::get_dev(index);
++  if (mDev->available()) {
++    mKernelFD = open(mDev->device_path.c_str(), O_RDWR, 0);
++    if (mKernelFD < 0) {
++      xclLog(XRT_ERROR, "%s: Cannot open device %s", __func__, mDev->device_path.c_str());
++    }
++  } else {
++    mKernelFD = -1;
++    xclLog(XRT_ERROR, "%s: Card [%d] not found", __func__, index);
+   }
+   mCmdBOCache = std::make_unique<xrt_core::bo_cache>(this, xrt_core::config::get_cmdbo_cache());
+-  mDev = zynq_device::get_dev();
+ }
+ 
+ #ifndef __HWEM__
+@@ -688,7 +695,7 @@ std::string
+ shim::
+ xclGetSysfsPath(const std::string& entry)
+ {
+-  return zynq_device::get_dev()->get_sysfs_path(entry);
++  return mDev->get_sysfs_path(entry);
+ }
+ 
+ int
+@@ -1349,9 +1356,8 @@ getIPCountAddrNames(int type,
+                     size_t size)
+ {
+   debug_ip_layout *map;
+-  auto dev = zynq_device::get_dev() ;
+   std::string entry_str = "debug_ip_layout";
+-  std::string path = dev->get_sysfs_path(entry_str);
++  std::string path = mDev->get_sysfs_path(entry_str);
+   std::ifstream ifs(path.c_str(), std::ifstream::binary);
+   uint32_t count = 0;
+   char buffer[65536];
+@@ -1590,32 +1596,7 @@ unsigned
+ xclProbe()
+ {
+   PROBE_CB;
+-
+-  int fd = open("/dev/dri/renderD128", O_RDWR);
+-  if (fd < 0) {
+-    return 0;
+-  }
+-  std::vector<char> name(128,0);
+-  std::vector<char> desc(512,0);
+-  std::vector<char> date(128,0);
+-  drm_version version;
+-  std::memset(&version, 0, sizeof(version));
+-  version.name = name.data();
+-  version.name_len = 128;
+-  version.desc = desc.data();
+-  version.desc_len = 512;
+-  version.date = date.data();
+-  version.date_len = 128;
+-
+-  int result = ioctl(fd, DRM_IOCTL_VERSION, &version);
+-  if (result) {
+-    close(fd);
+-    return 0;
+-  }
+-
+-  result = std::strncmp(version.name, "zocl", 4);
+-  close(fd);
+-  return (result == 0) ? 1 : 0;
++  return (zynq_device::get_dev()->available());
+ }
+ #endif
+ 
+@@ -1624,7 +1605,7 @@ xclOpen(unsigned deviceIndex, const char*, xclVerbosityLevel)
+ {
+   try {
+     //std::cout << "xclOpen called" << std::endl;
+-    if (deviceIndex >= xclProbe()) {
++    if (zynq_device::get_dev(deviceIndex)->available() == false) {
+       xrt_core::message::send(xrt_core::message::severity_level::info, "XRT",
+                        std::string("Cannot find index " + std::to_string(deviceIndex) + " \n"));
+       return nullptr;
+@@ -1652,6 +1633,22 @@ xclOpen(unsigned deviceIndex, const char*, xclVerbosityLevel)
+ 
+ }
+ 
++xclDeviceHandle
++xclOpenByBDF(const char *bdf)
++{
++  try {
++    return xclOpen(0, nullptr, XCL_QUIET);
++  }
++  catch (const xrt_core::error& ex) {
++    xrt_core::send_exception_message(ex.what());
++  }
++  catch (const std::exception& ex) {
++    xrt_core::send_exception_message(ex.what());
++  }
++
++  return nullptr;
++}
++
+ void
+ xclClose(xclDeviceHandle handle)
+ {
+@@ -2269,49 +2266,82 @@ xclRegisterInterruptNotify(xclDeviceHandle handle, unsigned int userInterrupt, i
+ }
+ 
+ int
+-xclCreateWriteQueue(xclDeviceHandle handle, xclQueueContext *q_ctx, void **q_hdl)
++xclCreateWriteQueue(xclDeviceHandle handle, xclQueueContext *q_ctx, uint64_t *q_hdl)
+ {
+   return -ENOSYS;
+ }
+ 
+ int
+-xclCreateReadQueue(xclDeviceHandle handle, xclQueueContext *q_ctx, void **q_hdl)
++xclCreateReadQueue(xclDeviceHandle handle, xclQueueContext *q_ctx, uint64_t *q_hdl)
+ {
+   return -ENOSYS;
+ }
+ 
+ int
+-xclDestroyQueue(xclDeviceHandle handle, void *q_hdl)
++xclDestroyQueue(xclDeviceHandle handle, uint64_t q_hdl)
+ {
+   return -ENOSYS;
+ }
+ 
+ int
+-xclModifyQueue(xclDeviceHandle handle, void *q_hdl)
++xclModifyQueue(xclDeviceHandle handle, uint64_t q_hdl)
+ {
+   return -ENOSYS;
+ }
+ 
+ int
+-xclStartQueue(xclDeviceHandle handle, void *q_hdl)
++xclStartQueue(xclDeviceHandle handle, uint64_t q_hdl)
+ {
+   return -ENOSYS;
+ }
+ 
+ int
+-xclStopQueue(xclDeviceHandle handle, void *q_hdl)
++xclStopQueue(xclDeviceHandle handle, uint64_t q_hdl)
+ {
+   return -ENOSYS;
+ }
+ 
+ ssize_t
+-xclWriteQueue(xclDeviceHandle handle, void *q_hdl, xclQueueRequest *wr_req)
++xclWriteQueue(xclDeviceHandle handle, uint64_t q_hdl, struct xclQueueRequest *wr_req)
+ {
+   return -ENOSYS;
+ }
+ 
+ ssize_t
+-xclReadQueue(xclDeviceHandle handle, void *q_hdl, xclQueueRequest *wr_req)
++xclReadQueue(xclDeviceHandle handle, uint64_t q_hdl, struct xclQueueRequest *rd_req)
++{
++  return -ENOSYS;
++}
++
++int
++xclPollQueue(xclDeviceHandle handle, uint64_t q_hdl, int min_compl,
++		   int max_compl, struct xclReqCompletion *comps,
++		   int* actual_compl, int timeout)
++{
++  return -ENOSYS;
++}
++
++int
++xclSetQueueOpt(xclDeviceHandle handle, uint64_t q_hdl, int type, uint32_t val)
++{
++  return -ENOSYS;
++}
++  
++int
++xclPollCompletion(xclDeviceHandle handle, int min_compl, int max_compl,
++                  struct xclReqCompletion *comps, int* actual_compl, int timeout)
++{
++  return -ENOSYS;
++}
++
++void*
++xclAllocQDMABuf(xclDeviceHandle handle, size_t size, uint64_t *buf_hdl)
++{
++  return NULL;
++}
++
++int
++xclFreeQDMABuf(xclDeviceHandle handle, uint64_t buf_hdl)
+ {
+   return -ENOSYS;
+ }
+diff --git a/src/runtime_src/core/edge/user/zynq_dev.cpp b/src/runtime_src/core/edge/user/zynq_dev.cpp
+index b8fb89dee..8a554813b 100644
+--- a/src/runtime_src/core/edge/user/zynq_dev.cpp
++++ b/src/runtime_src/core/edge/user/zynq_dev.cpp
+@@ -20,6 +20,96 @@
+ #include <cstring>
+ #include "zynq_dev.h"
+ 
++#include <memory>
++#include <mutex>
++#include <fcntl.h>
++#include <dirent.h>
++#include <unistd.h>
++#include <sys/ioctl.h>
++#include <libdrm/drm.h>
++#include <libdrm/drm_mode.h>
++
++class zynq_device_scanner {
++  private:
++    std::mutex lock;
++    std::vector<zynq_device> device_list;
++
++    int  strncmp(const char* s1, const std::string& s2)
++    {
++        return std::strncmp(s1, s2.c_str(), s2.length());
++    }
++    void rescan_nolock(void)
++    {
++        DIR* dp = opendir(zynq_device::dri_root.c_str());
++        if (dp) {
++            int            index = 0;
++            struct dirent* entry;
++            drm_version    version;
++            const std::unique_ptr<char[]> name(new char[128]);
++            const std::unique_ptr<char[]> desc(new char[512]);
++            const std::unique_ptr<char[]> date(new char[128]);
++            std::memset(&version, 0, sizeof(version));
++            version.name     = name.get();
++            version.name_len = 128;
++            version.desc     = desc.get();
++            version.desc_len = 512;
++            version.date     = date.get();
++            version.date_len = 128;
++        
++            while ((entry = readdir(dp))) {
++                int fd;
++                std::string render_name(entry->d_name);
++                if (strncmp(entry->d_name, zynq_device::render_prefix) != 0) 
++                    continue;
++                std::string dev_path =  zynq_device::dri_root + "/" + render_name;
++                if ((fd = open(dev_path.c_str(), O_RDWR, 0)) < 0)
++                    continue;
++                if (ioctl(fd, DRM_IOCTL_VERSION, &version) == 0) {
++                    if (strncmp(version.name, zynq_device::drm_name) == 0) {
++                        device_list.insert(device_list.end(), zynq_device(render_name, index));
++                        index++;
++                    }
++                }
++                close(fd);
++            }
++            closedir(dp);
++        }
++    }
++
++  public:
++    static zynq_device_scanner *get()
++    {
++        static zynq_device_scanner scanner;
++        return &scanner;
++    }
++  
++    zynq_device* get_dev(unsigned index)
++    {
++        std::lock_guard<std::mutex> l(lock);
++        if (index < device_list.size())
++            return &device_list[index];
++        else
++            return &zynq_device::dummy_device;
++    }
++
++    void rescan(void)
++    {
++        std::lock_guard<std::mutex> l(lock);
++        rescan_nolock();
++    }
++
++    size_t device_num_total(void)
++    {
++        std::lock_guard<std::mutex> l(lock);
++        return device_list.size();
++    }
++
++  private:
++    zynq_device_scanner(void) { rescan_nolock();}
++    zynq_device_scanner(const zynq_device_scanner&  s) = delete;
++    zynq_device_scanner& operator=(const zynq_device_scanner& s) = delete;
++};
++
+ static std::fstream sysfs_open_path(const std::string& path, std::string& err,
+     bool write, bool binary)
+ {
+@@ -139,15 +229,20 @@ void zynq_device::sysfs_get(const std::string& entry, std::string& err_msg,
+         s = ""; // default value
+ }
+ 
+-zynq_device *zynq_device::get_dev()
++zynq_device *zynq_device::get_dev(unsigned index)
+ {
+-    // This is based on the fact that on edge devices, we only have one DRM
+-    // device, which is named renderD128.
+-    // This path is reliable. It is the same for ARM32 and ARM64.
+-    static zynq_device dev("/sys/class/drm/renderD128/device/");
+-    return &dev;
++    return zynq_device_scanner::get()->get_dev(index);
+ }
+ 
+-zynq_device::zynq_device(const std::string& root) : sysfs_root(root)
++zynq_device::zynq_device(const std::string& render_name, int index)
++  : index(index)
++  , render_name(render_name)
++  , device_path(dri_root + "/" + render_name)
++  , sysfs_root("/sys/class/drm/" + render_name + "/device/")
+ {
+ }
++
++zynq_device zynq_device::dummy_device ("renderD128", -1);
++std::string zynq_device::dri_root     ("/dev/dri");
++std::string zynq_device::drm_name     ("zocl"    );
++std::string zynq_device::render_prefix("renderD" );
+diff --git a/src/runtime_src/core/edge/user/zynq_dev.h b/src/runtime_src/core/edge/user/zynq_dev.h
+index 76ce580de..8d1e92b0c 100644
+--- a/src/runtime_src/core/edge/user/zynq_dev.h
++++ b/src/runtime_src/core/edge/user/zynq_dev.h
+@@ -49,15 +49,26 @@ public:
+         const std::vector<char>& buf);
+     std::string get_sysfs_path(const std::string& entry);
+ 
+-    static zynq_device *get_dev();
+-private:
++    static zynq_device *get_dev(unsigned index = 0);
++
+     std::fstream sysfs_open(const std::string& entry, std::string& err,
+         bool write = false, bool binary = false);
+ 
++    static zynq_device dummy_device;
++    static std::string dri_root;
++    static std::string drm_name;
++    static std::string render_prefix;
++
++    int         index;
++    std::string render_name;
++    std::string device_path;
+     std::string sysfs_root;
+-    zynq_device(const std::string& sysfs_base);
+-    zynq_device(const zynq_device& s) = delete;
+-    zynq_device& operator=(const zynq_device& s) = delete;
++
++    bool available(void)
++    {
++        return (index >= 0);
++    }
++    zynq_device(const std::string& render_name, int index);
+ };
+ 
+ #endif
