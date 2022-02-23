@@ -14,23 +14,27 @@ xrt_binaries   :=    \
 	xclbinutil   \
 	$(ENDLIST)
 
-xrt_libraries  :=                            \
-	libcommon_em.so    \
-	liboclxdp.so       \
-	libsched_em.so     \
-	libsched_em_v30.so \
-	libxdp.so          \
-	libxdp_core.so     \
-	libxilinxopencl.so \
-	libxma2api.so      \
-	libxma2plugin.so   \
-	libxmaapi.so       \
-	libxmaplugin.so    \
-	libxrt++.so        \
-	libxrt_core.so     \
-	libxrt_coreutil.so \
-	libxrt_hwemu.so    \
-	libxrt_swemu.so    \
+xrt_dynamic_libraries  :=    \
+	libcommon_em.so      \
+	libcommon_em_v30.so  \
+	libxdp_core.so       \
+        libxilinxopencl.so   \
+        libxma2api.so        \
+        libxma2plugin.so     \
+        libxmaapi.so         \
+        libxmaplugin.so      \
+        libxrt++.so          \
+        libxrt_core.so       \
+        libxrt_coreutil.so   \
+        libxrt_hwemu.so      \
+        libxrt_swemu.so      \
+	$(ENDLIST)
+
+xrt_static_libraries  :=         \
+        libxilinxopencl_static.a \
+        libxrt++_static.a        \
+        libxrt_coreutil_static.a \
+        xrt                      \
 	$(ENDLIST)
 
 clean:
@@ -48,9 +52,12 @@ binary-arch: build
 	for bin in $(xrt_binaries); do \
 		ln -s /opt/xilinx/xrt/bin/$$bin debian/tmp/usr/bin/$$bin; \
 	done
-	for lib in $(xrt_libraries); do \
+	for lib in $(xrt_dynamic_libraries); do \
 		ln -s /opt/xilinx/xrt/lib/$$lib   debian/tmp/usr/lib/$$lib;   \
 		ln -s /opt/xilinx/xrt/lib/$$lib.2 debian/tmp/usr/lib/$$lib.2; \
+	done
+	for lib in $(xrt_static_libraries); do \
+		ln -s /opt/xilinx/xrt/lib/$$lib   debian/tmp/usr/lib/$$lib;   \
 	done
 	dpkg-gencontrol -DArchitecture=$(deb_arch)
 	cp -a debian/postinst       debian/tmp/DEBIAN
