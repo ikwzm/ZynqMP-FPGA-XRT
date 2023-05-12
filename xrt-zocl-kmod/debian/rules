@@ -1,0 +1,59 @@
+#!/usr/bin/make -f
+# -*- makefile -*-
+
+package        = xrt-zocl
+kernel_release ?= $(shell uname -r)
+arch           ?= $(shell uname -m | sed -e s/arm.*/arm/ -e s/aarch64.*/arm64/)
+host_arch      ?= $(shell uname -m | sed -e s/arm.*/arm/ -e s/aarch64.*/arm64/)
+deb_arch       ?= $(shell dpkg --print-architecture)
+kernel_src_dir ?= /lib/modules/$(kernel_release)/build
+xrt_src_dir    ?= ../XRT/src
+doc_dir         = /usr/share/doc/$(package)-$(kernel_release)
+lib_dir         = /lib/modules/$(kernel_release)/xlnx
+zocl_src_dir    = $(xrt_src_dir)/runtime_src/core/edge/drm/zocl
+
+ifeq ($(arch), arm)
+ ifneq ($(host_arch), arm)
+   cross_compile  ?= arm-linux-gnueabihf-
+ endif
+endif
+ifeq ($(arch), arm64)
+ ifneq ($(host_arch), arm64)
+   cross_compile  ?= aarch64-linux-gnu-
+ endif
+endif
+
+clean:
+	rm -f build
+	cd $(zocl_src_dir); $(MAKE) ARCH=$(arch) KERNEL_SRC=$(kernel_src_dir) CROSS_COMPILE=$(cross_compile) clean; cd -
+	rm -rf debian/tmp debian/control debian/*~ debian/files* debian/substvars
+
+build:
+	cd $(zocl_src_dir); $(MAKE) ARCH=$(arch) KERNEL_SRC=$(kernel_src_dir) CROSS_COMPILE=$(cross_compile) modules; cd -
+	touch build
+
+binary-indep: build
+
+control: debian/control.template
+	sed -e "s/\$${KERNEL_RELEASE}/${kernel_release}/g" debian/control.template > debian/control
+
+binary: binary-indep binary-arch
+
+binary-arch: control build
+	rm     -rf debian/tmp
+	install -d debian/tmp/DEBIAN 
+	install -d debian/tmp/$(doc_dir)
+	install -d debian/tmp/$(lib_dir)
+	install -m 0644 $(zocl_src_dir)/zocl.ko debian/tmp/$(lib_dir)
+	cp -a debian/copyright  debian/tmp/$(doc_dir)
+	cp -a debian/changelog  debian/tmp/$(doc_dir)/changelog.Debian
+	cp -a debian/changelog  debian/tmp/$(doc_dir)/changelog
+	cd debian/tmp/$(doc_dir) && gzip -9 changelog changelog.Debian
+	dpkg-gencontrol -DArchitecture=$(deb_arch)
+	cp -a debian/postinst   debian/tmp/DEBIAN 
+	cp -a debian/prerm      debian/tmp/DEBIAN 
+	cp -a debian/postrm     debian/tmp/DEBIAN 
+	chown -R root:root      debian/tmp/DEBIAN 
+	chmod u+w,go=rX         debian/tmp/DEBIAN
+	dpkg-deb --build debian/tmp ..
+

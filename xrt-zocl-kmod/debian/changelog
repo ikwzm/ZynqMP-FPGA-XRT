@@ -1,0 +1,6 @@
+xrt-zocl (2.15.0) experimental;urgency=medium
+
+  * Move to latest XRT version
+
+ -- Rahul Bramandlapalli <rbramand@xilinx.com>  Wed, 28 Apr 2021 00:23:51 +0530
+

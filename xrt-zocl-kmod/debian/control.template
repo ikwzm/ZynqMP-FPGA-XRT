@@ -1,0 +1,17 @@
+Source: xrt-zocl
+Section: kmod
+Priority: optional
+Maintainer: ikwzm <ichiro_k@ca2.so-net.ne.jp>
+Build-Depends: debhelper (>= 9), bzip2
+Standards-Version: 3.9.6
+Homepage: <https://github.com/Xilinx/XRT>
+
+Package: xrt-zocl-${KERNEL_RELEASE}
+Architecture: any
+Provides: xrt-zocl-kernel-module
+Depends: ${shlibs:Depends}, ${misc:Depends}, linux-image-${KERNEL_RELEASE}
+Description: Xilinx Runtime (XRT) - ZOCL kernel drivers
+ The Xilinx Runtime (XRT) provides acceleration across PCIe and MPSoC
+ based Xilinx platforms.
+ .
+ This package contains the ZOCL kernel drivers.
