@@ -1,0 +1,12 @@
+diff --git a/src/CMake/dkms-edge.cmake b/src/CMake/dkms-edge.cmake
+index 0c0ed308f..dbaab4dd6 100644
+--- a/src/CMake/dkms-edge.cmake
++++ b/src/CMake/dkms-edge.cmake
+@@ -61,6 +61,7 @@ SET (XRT_DKMS_DRIVER_SRCS
+   zocl/10-zocl.rules
+   zocl/cu.c
+   zocl/cu_scu.c
++  zocl/scu.c
+   zocl/LICENSE
+   zocl/Makefile
+   zocl/zocl_aie.c
