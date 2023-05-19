@@ -14,7 +14,7 @@ __url__='https://github.com/ikwzm/ZynqMP-FPGA-XRT'
 XRT_MAJOR_VERSION=2
 XRT_MINOR_VERSION=15
 XRT_RELEASE_VERSION=202310
-XRT_VERSION_PATCH=0
+XRT_VERSION_PATCH=1
 #
 # Linux Kernel Release Name
 #

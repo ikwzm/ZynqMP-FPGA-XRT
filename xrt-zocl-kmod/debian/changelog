@@ -1,3 +1,9 @@
+xrt-zocl (2.15.1) experimental;urgency=medium
+
+  * Move to latest XRT version
+
+ -- Ichiro Kawazome <ichiro_k@ca2.so-net.ne.jp>  Fri, 19 May 2023 21:15:00 +900
+
 xrt-zocl (2.15.0) experimental;urgency=medium
 
   * Move to latest XRT version
