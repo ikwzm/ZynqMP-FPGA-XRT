@@ -1,0 +1,23 @@
+diff --git a/src/runtime_src/tools/scripts/xrtdeps.sh b/src/runtime_src/tools/scripts/xrtdeps.sh
+index 401641d9c..930ebb878 100755
+--- a/src/runtime_src/tools/scripts/xrtdeps.sh
++++ b/src/runtime_src/tools/scripts/xrtdeps.sh
+@@ -236,8 +236,16 @@ ub_package_list()
+     # Use GCC8 on ARM64 Ubuntu as GCC7 randomly crashes with Internal Compiler Error on
+     # Travis CI ARM64 platform
+     if [ $ARCH == "aarch64" ]; then
+-        UB_LIST+=( gcc-8 )
+-        UB_LIST+=( g++-8 )
++        if   [ $FLAVOR == "ubuntu" ] && [ $MAJOR == 22 ]; then
++            UB_LIST+=( gcc-11 )
++            UB_LIST+=( g++-11 )
++        elif [ $FLAVOR == "debian" ] && [ $MAJOR == 11 ]; then
++            UB_LIST+=( gcc-10 )
++            UB_LIST+=( g++-10 )
++	else 
++            UB_LIST+=( gcc-8 )
++            UB_LIST+=( g++-8 )
++	fi 
+     fi
+ 
+ }
